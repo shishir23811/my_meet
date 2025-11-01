@@ -98,12 +98,22 @@ class LANCommunicatorApp(QStackedWidget):
             server_thread = threading.Thread(target=self.server.start, daemon=True)
             server_thread.start()
             
-            # Small delay to ensure server is ready
+            # Wait for server to start and get actual ports
             import time
-            time.sleep(0.5)
+            time.sleep(1.0)  # Give server more time to start
             
-            # Connect as client to own server
-            self.client = LANClient(username, '127.0.0.1', session_id)
+            # Check if server started successfully
+            if not self.server.running:
+                raise Exception("Server failed to start - check port availability")
+            
+            # Connect as client to own server using actual server ports
+            self.client = LANClient(
+                username, 
+                '127.0.0.1', 
+                session_id,
+                tcp_port=self.server.tcp_port,
+                udp_port=self.server.udp_port
+            )
             self.media_capture = MediaCaptureManager(self.client)
             
             # Connect client signals
@@ -121,8 +131,18 @@ class LANCommunicatorApp(QStackedWidget):
                 
         except Exception as e:
             logger.error(f"Failed to host session: {e}")
-            QMessageBox.critical(self, "Error",
-                               f"Failed to host session: {e}")
+            
+            # Provide more specific error messages
+            error_msg = str(e)
+            if "10048" in error_msg or "address already in use" in error_msg.lower():
+                error_msg = ("Port already in use. Please try again in a few seconds, "
+                           "or restart the application to free up ports.")
+            elif "server failed to start" in error_msg.lower():
+                error_msg = ("Server failed to start. This might be due to port conflicts "
+                           "or permission issues. Try restarting the application.")
+            
+            QMessageBox.critical(self, "Failed to Host Session", error_msg)
+            
             if self.server:
                 self.server.stop()
                 self.server = None

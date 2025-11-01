@@ -76,9 +76,54 @@ class LANServer:
         
         logger.info(f"Server initialized: session_id={session_id}, host={host_username}")
     
+    def find_available_port(self, start_port: int, port_type: str = "TCP") -> int:
+        """
+        Find an available port starting from the given port.
+        
+        Args:
+            start_port: Starting port number to check
+            port_type: Type of port (TCP or UDP) for logging
+            
+        Returns:
+            Available port number
+        """
+        for port in range(start_port, start_port + 10):
+            try:
+                if port_type.upper() == "TCP":
+                    test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    test_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                else:
+                    test_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    test_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                
+                test_socket.bind(('0.0.0.0', port))
+                test_socket.close()
+                logger.info(f"Found available {port_type} port: {port}")
+                return port
+                
+            except OSError:
+                continue
+        
+        # If no port found in range, use original port and let it fail with proper error
+        logger.warning(f"No available {port_type} ports found in range {start_port}-{start_port + 9}")
+        return start_port
+    
     def start(self):
         """Start the server (TCP and UDP listeners)."""
         try:
+            # Find available ports if defaults are in use
+            available_tcp_port = self.find_available_port(self.tcp_port, "TCP")
+            available_udp_port = self.find_available_port(self.udp_port, "UDP")
+            
+            # Update ports if different from defaults
+            if available_tcp_port != self.tcp_port:
+                logger.info(f"Using alternative TCP port: {available_tcp_port} (default {self.tcp_port} was in use)")
+                self.tcp_port = available_tcp_port
+            
+            if available_udp_port != self.udp_port:
+                logger.info(f"Using alternative UDP port: {available_udp_port} (default {self.udp_port} was in use)")
+                self.udp_port = available_udp_port
+            
             # Create and bind TCP socket
             self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -88,6 +133,7 @@ class LANServer:
             
             # Create and bind UDP socket
             self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.udp_socket.bind(('0.0.0.0', self.udp_port))
             logger.info(f"UDP server listening on port {self.udp_port}")
             

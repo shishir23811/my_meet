@@ -147,35 +147,35 @@ class MainAppWindow(QMainWindow):
         separator.setFrameShape(QFrame.HLine)
         layout.addWidget(separator)
         
-        # Communication mode selector
-        mode_group = QGroupBox("Communication Mode")
-        mode_layout = QVBoxLayout(mode_group)
+        # User list header with ALL/None button
+        users_header_layout = QHBoxLayout()
         
-        self.mode_button_group = QButtonGroup()
+        users_label = QLabel("Active Users")
+        users_label.setStyleSheet("font-weight: bold;")
+        users_header_layout.addWidget(users_label)
         
-        self.broadcast_radio = QRadioButton("Broadcast (All)")
-        self.broadcast_radio.setChecked(True)
-        self.broadcast_radio.toggled.connect(self.on_mode_changed)
-        mode_layout.addWidget(self.broadcast_radio)
-        self.mode_button_group.addButton(self.broadcast_radio)
+        # ALL/None toggle button
+        self.select_all_btn = QPushButton("All")
+        self.select_all_btn.setFixedSize(50, 25)
+        self.select_all_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                font-size: 10px;
+                font-weight: bold;
+                border-radius: 3px;
+                padding: 2px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        self.select_all_btn.clicked.connect(self.toggle_select_all_users)
+        users_header_layout.addWidget(self.select_all_btn)
         
-        self.multicast_radio = QRadioButton("Multicast (Selected)")
-        self.multicast_radio.toggled.connect(self.on_mode_changed)
-        mode_layout.addWidget(self.multicast_radio)
-        self.mode_button_group.addButton(self.multicast_radio)
-        
-        self.unicast_radio = QRadioButton("Unicast (One)")
-        self.unicast_radio.toggled.connect(self.on_mode_changed)
-        mode_layout.addWidget(self.unicast_radio)
-        self.mode_button_group.addButton(self.unicast_radio)
-        
-        layout.addWidget(mode_group)
+        layout.addLayout(users_header_layout)
         
         # User list
-        users_label = QLabel("Active Users")
-        users_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
-        layout.addWidget(users_label)
-        
         self.user_list_widget = QListWidget()
         self.user_list_widget.itemChanged.connect(self.on_user_selection_changed)
         layout.addWidget(self.user_list_widget)
@@ -446,11 +446,6 @@ class MainAppWindow(QMainWindow):
         session_label = QLabel(f"Session: {self.session_id}")
         session_label.setStyleSheet("font-size: 10px; color: #666;")
         self.status_bar.addWidget(session_label)
-        
-        # Mode indicator
-        self.mode_label = QLabel("Mode: Broadcast")
-        self.mode_label.setStyleSheet("font-size: 10px; color: #666;")
-        self.status_bar.addWidget(self.mode_label)
     
     # ========================================================================
     # User Management Methods
@@ -475,6 +470,9 @@ class MainAppWindow(QMainWindow):
         item.setData(Qt.UserRole, username)
         self.user_list_widget.addItem(item)
         
+        # Update the All/None button state
+        self.update_select_all_button()
+        
         logger.info(f"Added user '{username}' to user list")
     
     def remove_user(self, username: str):
@@ -488,6 +486,9 @@ class MainAppWindow(QMainWindow):
                 self.user_list_widget.takeItem(i)
                 logger.info(f"Removed user '{username}' from user list")
                 break
+        
+        # Update the All/None button state
+        self.update_select_all_button()
         
         # Also remove video display
         self.remove_user_video(username)
@@ -506,19 +507,82 @@ class MainAppWindow(QMainWindow):
         """Handle user selection changes."""
         selected = self.get_selected_users()
         logger.debug(f"Selected users: {selected}")
+        
+        # Update button text based on selection
+        self.update_select_all_button()
     
     @Slot()
-    def on_mode_changed(self):
-        """Handle communication mode changes."""
-        if self.broadcast_radio.isChecked():
-            mode = "Broadcast"
-        elif self.multicast_radio.isChecked():
-            mode = "Multicast"
+    def toggle_select_all_users(self):
+        """Toggle selection of all users."""
+        if self.select_all_btn.text() == "All":
+            # Select all users
+            for i in range(self.user_list_widget.count()):
+                item = self.user_list_widget.item(i)
+                item.setCheckState(Qt.Checked)
+            logger.info("Selected all users")
         else:
-            mode = "Unicast"
+            # Deselect all users
+            for i in range(self.user_list_widget.count()):
+                item = self.user_list_widget.item(i)
+                item.setCheckState(Qt.Unchecked)
+            logger.info("Deselected all users")
         
-        self.mode_label.setText(f"Mode: {mode}")
-        logger.info(f"Communication mode changed to: {mode}")
+        # Update button appearance
+        self.update_select_all_button()
+    
+    def update_select_all_button(self):
+        """Update the All/None button based on current selection."""
+        selected_count = len(self.get_selected_users())
+        total_count = self.user_list_widget.count()
+        
+        if selected_count == 0:
+            # No users selected - show "All" button
+            self.select_all_btn.setText("All")
+            self.select_all_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    font-size: 10px;
+                    font-weight: bold;
+                    border-radius: 3px;
+                    padding: 2px;
+                }
+                QPushButton:hover {
+                    background-color: #45a049;
+                }
+            """)
+        elif selected_count == total_count:
+            # All users selected - show "None" button
+            self.select_all_btn.setText("None")
+            self.select_all_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #f44336;
+                    color: white;
+                    font-size: 10px;
+                    font-weight: bold;
+                    border-radius: 3px;
+                    padding: 2px;
+                }
+                QPushButton:hover {
+                    background-color: #da190b;
+                }
+            """)
+        else:
+            # Some users selected - show "None" button (to clear selection)
+            self.select_all_btn.setText("None")
+            self.select_all_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #FF9800;
+                    color: white;
+                    font-size: 10px;
+                    font-weight: bold;
+                    border-radius: 3px;
+                    padding: 2px;
+                }
+                QPushButton:hover {
+                    background-color: #F57C00;
+                }
+            """)
     
     # ========================================================================
     # Chat Methods
@@ -531,24 +595,21 @@ class MainAppWindow(QMainWindow):
         if not message:
             return
         
-        # Determine mode and targets
-        if self.broadcast_radio.isChecked():
+        # Determine mode and targets based on user selection
+        selected_users = self.get_selected_users()
+        
+        if not selected_users:
+            # No users selected - broadcast to all
             mode = "broadcast"
             targets = []
-        elif self.multicast_radio.isChecked():
-            mode = "multicast"
-            targets = self.get_selected_users()
-            if not targets:
-                QMessageBox.warning(self, "No Users Selected", 
-                                  "Please select at least one user for multicast.")
-                return
-        else:  # Unicast
+        elif len(selected_users) == 1:
+            # One user selected - unicast
             mode = "unicast"
-            targets = self.get_selected_users()
-            if len(targets) != 1:
-                QMessageBox.warning(self, "Invalid Selection", 
-                                  "Please select exactly one user for unicast.")
-                return
+            targets = selected_users
+        else:
+            # Multiple users selected - multicast
+            mode = "multicast"
+            targets = selected_users
         
         # Emit signal (will be handled by client network layer)
         self.send_chat_message.emit(message, mode, targets)
@@ -558,7 +619,7 @@ class MainAppWindow(QMainWindow):
         
         # Clear input
         self.chat_input.clear()
-        logger.info(f"Sent chat message in {mode} mode: {message[:50]}...")
+        logger.info(f"Sent chat message in {mode} mode to {len(targets) if targets else 'all'} users: {message[:50]}...")
     
     def display_message(self, sender: str, message: str, direction: str = "received"):
         """
@@ -621,32 +682,21 @@ class MainAppWindow(QMainWindow):
                 )
                 return
             
-            # Determine mode and targets (same as chat)
-            if self.broadcast_radio.isChecked():
+            # Determine mode and targets based on user selection
+            selected_users = self.get_selected_users()
+            
+            if not selected_users:
+                # No users selected - broadcast to all
                 mode = "broadcast"
                 targets = []
-            elif self.multicast_radio.isChecked():
-                mode = "multicast"
-                targets = self.get_selected_users()
-                if not targets:
-                    self.error_manager.report_error(
-                        category=ErrorCategory.USER_INPUT,
-                        error_type='no_users_selected',
-                        severity=ErrorSeverity.WARNING,
-                        component='file_transfer'
-                    )
-                    return
-            else:  # Unicast
+            elif len(selected_users) == 1:
+                # One user selected - unicast
                 mode = "unicast"
-                targets = self.get_selected_users()
-                if len(targets) != 1:
-                    self.error_manager.report_error(
-                        category=ErrorCategory.USER_INPUT,
-                        error_type='invalid_user_selection',
-                        severity=ErrorSeverity.WARNING,
-                        component='file_transfer'
-                    )
-                    return
+                targets = selected_users
+            else:
+                # Multiple users selected - multicast
+                mode = "multicast"
+                targets = selected_users
             
             # Update status and emit signal
             self.error_manager.update_component_status('file_transfer', 'processing', 'Starting file upload...')
