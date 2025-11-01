@@ -141,7 +141,7 @@ class AudioCapture:
                 channels=self.channels,
                 samplerate=self.sample_rate,
                 dtype=self.dtype,
-                frames=self.frames_per_buffer,
+                blocksize=self.frames_per_buffer,
                 callback=self._audio_callback
             ):
                 while self.is_active:
@@ -336,7 +336,7 @@ class AudioPlayback:
                 channels=self.channels,
                 samplerate=self.sample_rate,
                 dtype=self.dtype,
-                frames=self.frames_per_buffer,
+                blocksize=self.frames_per_buffer,
                 callback=self._audio_playback_callback
             ):
                 while self.is_active:
