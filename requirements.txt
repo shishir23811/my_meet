@@ -12,7 +12,6 @@ sounddevice>=0.4.6
 
 # Screen capture
 mss>=9.0.0
-Pillow>=10.0.0
 
 # Packaging (for creating executables)
 pyinstaller>=5.13.0
