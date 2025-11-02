@@ -56,8 +56,25 @@ class LANServer:
         """
         self.session_id = session_id
         self.host_username = host_username
-        self.tcp_port = tcp_port or config.get('network.tcp_port', DEFAULT_TCP_PORT)
-        self.udp_port = udp_port or config.get('network.udp_port', DEFAULT_UDP_PORT)
+        
+        # Smart port selection - try specified ports first, then find available ones
+        if tcp_port and udp_port:
+            self.tcp_port = tcp_port
+            self.udp_port = udp_port
+        else:
+            # Try default ports first
+            default_tcp = config.get('network.tcp_port', DEFAULT_TCP_PORT)
+            default_udp = config.get('network.udp_port', DEFAULT_UDP_PORT)
+            
+            if self._are_ports_available(default_tcp, default_udp):
+                self.tcp_port = default_tcp
+                self.udp_port = default_udp
+                logger.info(f"Using default ports: TCP {self.tcp_port}, UDP {self.udp_port}")
+            else:
+                # Find available ports automatically
+                from utils.config import find_available_ports
+                self.tcp_port, self.udp_port = find_available_ports()
+                logger.info(f"Default ports unavailable, using: TCP {self.tcp_port}, UDP {self.udp_port}")
         
         logger.info(f"LANServer initialized with session_id: '{self.session_id}'")
         
@@ -77,6 +94,25 @@ class LANServer:
         self.file_manager = ServerFileManager()
         
         logger.info(f"Server initialized: session_id={session_id}, host={host_username}")
+    
+    def _are_ports_available(self, tcp_port: int, udp_port: int) -> bool:
+        """Check if both TCP and UDP ports are available."""
+        # Test TCP port
+        try:
+            tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            tcp_sock.bind(('', tcp_port))
+            tcp_sock.close()
+        except OSError:
+            return False
+        
+        # Test UDP port
+        try:
+            udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            udp_sock.bind(('', udp_port))
+            udp_sock.close()
+            return True
+        except OSError:
+            return False
     
     def find_available_port(self, start_port: int, port_type: str = "TCP") -> int:
         """

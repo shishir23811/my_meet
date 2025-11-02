@@ -25,6 +25,7 @@ class HostJoinWindow(QWidget):
     # Signals
     host_session = Signal(str, str)  # session_id, username
     join_session = Signal(str, str, str)  # session_id, server_address, username
+    join_session_with_ports = Signal(str, str, str, int, int)  # session_id, server_address, username, tcp_port, udp_port
     go_back = Signal()  # Return to login
     
     def __init__(self, username: str):
@@ -277,9 +278,31 @@ class HostJoinWindow(QWidget):
         self.join_server_address.returnPressed.connect(self.start_joining)
         layout.addWidget(self.join_server_address)
         
-        # Note about localhost
-        note = QLabel("Tip: Use '127.0.0.1' or 'localhost' for same-machine testing")
+        # Port inputs (optional, with defaults)
+        port_layout = QHBoxLayout()
+        
+        # TCP Port
+        port_layout.addWidget(QLabel("TCP Port:"))
+        self.join_tcp_port = QLineEdit()
+        self.join_tcp_port.setPlaceholderText("54321 (default)")
+        self.join_tcp_port.setMaxLength(5)
+        self.join_tcp_port.setMinimumHeight(40)
+        port_layout.addWidget(self.join_tcp_port)
+        
+        # UDP Port
+        port_layout.addWidget(QLabel("UDP Port:"))
+        self.join_udp_port = QLineEdit()
+        self.join_udp_port.setPlaceholderText("54322 (default)")
+        self.join_udp_port.setMaxLength(5)
+        self.join_udp_port.setMinimumHeight(40)
+        port_layout.addWidget(self.join_udp_port)
+        
+        layout.addLayout(port_layout)
+        
+        # Note about ports and localhost
+        note = QLabel("Tip: Leave ports empty to use defaults. Use '127.0.0.1' for same-machine testing.")
         note.setStyleSheet("color: gray; font-size: 10px;")
+        note.setWordWrap(True)
         layout.addWidget(note)
         
         layout.addSpacing(20)
@@ -357,8 +380,13 @@ class HostJoinWindow(QWidget):
         
         from PySide6.QtGui import QGuiApplication
         
-        # Create formatted session info
-        session_info = f"Session ID: {self.session_id}\nServer Address: {self.server_ip}"
+        # Create formatted session info with port information
+        port_info = ""
+        if hasattr(self, 'actual_tcp_port') and hasattr(self, 'actual_udp_port'):
+            if self.actual_tcp_port != 54321 or self.actual_udp_port != 54322:  # Show ports if non-default
+                port_info = f"\nTCP Port: {self.actual_tcp_port}\nUDP Port: {self.actual_udp_port}"
+        
+        session_info = f"Session ID: {self.session_id}\nServer Address: {self.server_ip}{port_info}"
         
         clipboard = QGuiApplication.clipboard()
         clipboard.setText(session_info)
@@ -380,6 +408,24 @@ class HostJoinWindow(QWidget):
         """Start joining a session."""
         session_id = self.join_session_id.text().strip().upper()  # Ensure uppercase
         server_address = self.join_server_address.text().strip()
+        
+        # Get custom ports or use defaults
+        tcp_port_text = self.join_tcp_port.text().strip()
+        udp_port_text = self.join_udp_port.text().strip()
+        
+        try:
+            tcp_port = int(tcp_port_text) if tcp_port_text else DEFAULT_TCP_PORT
+            udp_port = int(udp_port_text) if udp_port_text else DEFAULT_UDP_PORT
+        except ValueError:
+            QMessageBox.warning(self, "Invalid Port", 
+                              "Ports must be numbers between 1024 and 65535.")
+            return
+        
+        # Validate port ranges
+        if not (1024 <= tcp_port <= 65535) or not (1024 <= udp_port <= 65535):
+            QMessageBox.warning(self, "Invalid Port Range", 
+                              "Ports must be between 1024 and 65535.")
+            return
         
         if not session_id:
             QMessageBox.warning(self, "Input Error", 
@@ -404,9 +450,17 @@ class HostJoinWindow(QWidget):
                               "Please enter the server address.")
             return
         
-        logger.info(f"Attempting to join session '{session_id}' at '{server_address}' as '{self.username}'")
-        logger.info(f"Session ID length: {len(session_id)}, characters: {[c for c in session_id]}")
-        self.join_session.emit(session_id, server_address, self.username)
+        logger.info(f"Attempting to join session '{session_id}' at '{server_address}:{tcp_port}' as '{self.username}'")
+        logger.info(f"Using ports: TCP {tcp_port}, UDP {udp_port}")
+        
+        # Use new signal with port information
+        self.join_session_with_ports.emit(session_id, server_address, self.username, tcp_port, udp_port)
+    
+    def update_server_ports(self, tcp_port: int, udp_port: int):
+        """Update the actual server ports used (for session sharing)."""
+        self.actual_tcp_port = tcp_port
+        self.actual_udp_port = udp_port
+        logger.info(f"Server ports updated: TCP {tcp_port}, UDP {udp_port}")
     
     def handle_go_back(self):
         """Handle back button - return to login."""

@@ -80,6 +80,7 @@ class LANCommunicatorApp(QStackedWidget):
         self.hostjoin_window = HostJoinWindow(username)
         self.hostjoin_window.host_session.connect(self.on_host_session)
         self.hostjoin_window.join_session.connect(self.on_join_session)
+        self.hostjoin_window.join_session_with_ports.connect(self.on_join_session_with_ports)
         self.hostjoin_window.go_back.connect(self.on_logout)
         
         self.addWidget(self.hostjoin_window)
@@ -123,6 +124,10 @@ class LANCommunicatorApp(QStackedWidget):
             
             # Connect to server
             if self.client.connect():
+                # Update host/join window with actual ports used
+                if self.hostjoin_window:
+                    self.hostjoin_window.update_server_ports(self.server.tcp_port, self.server.udp_port)
+                
                 # Create and show main window
                 self._create_main_window()
             else:
@@ -224,12 +229,26 @@ class LANCommunicatorApp(QStackedWidget):
             # Provide more specific error messages
             error_msg = str(e)
             if "10060" in error_msg or "timed out" in error_msg.lower():
-                error_msg = (f"Connection timed out when trying to reach {server_address}:{DEFAULT_TCP_PORT}.\n\n"
-                           f"This usually means:\n"
-                           f"• The server is not running at that address\n"
-                           f"• A firewall is blocking the connection\n"
-                           f"• The devices are not on the same network\n\n"
-                           f"Please verify the server address and try again.")
+                if sys.platform.startswith('win'):
+                    firewall_msg = (f"🔥 MOST LIKELY CAUSE: Windows Firewall\n\n"
+                                  f"HOST COMPUTER ({server_address}) MUST:\n"
+                                  f"1. Run setup_firewall.bat as Administrator\n"
+                                  f"2. Or manually open Windows Defender Firewall (wf.msc)\n"
+                                  f"3. Create Inbound Rules for ports {DEFAULT_TCP_PORT} and {DEFAULT_UDP_PORT}")
+                else:
+                    firewall_msg = (f"🔥 MOST LIKELY CAUSE: Firewall\n\n"
+                                  f"HOST COMPUTER ({server_address}) MUST:\n"
+                                  f"1. Run ./setup_firewall_ubuntu.sh\n"
+                                  f"2. Or manually: sudo ufw allow {DEFAULT_TCP_PORT}/tcp\n"
+                                  f"3. And: sudo ufw allow {DEFAULT_UDP_PORT}/udp")
+                
+                error_msg = (f"Connection timed out to {server_address}:{DEFAULT_TCP_PORT}\n\n"
+                           f"{firewall_msg}\n\n"
+                           f"OTHER POSSIBLE CAUSES:\n"
+                           f"• Host hasn't started the session\n"
+                           f"• Different network segments\n"
+                           f"• Router blocking inter-device communication\n\n"
+                           f"See NETWORK_TROUBLESHOOTING.md for detailed steps")
             elif "10061" in error_msg or "connection refused" in error_msg.lower():
                 error_msg = (f"Connection refused by {server_address}:{DEFAULT_TCP_PORT}.\n\n"
                            f"This usually means:\n"
@@ -238,6 +257,67 @@ class LANCommunicatorApp(QStackedWidget):
                            f"Please make sure the host has started the session.")
             
             QMessageBox.critical(self, "Connection Error", error_msg)
+    
+    @Slot(str, str, str, int, int)
+    def on_join_session_with_ports(self, session_id: str, server_address: str, username: str, tcp_port: int, udp_port: int):
+        """Handle joining a session with custom ports."""
+        logger.info(f"Joining session '{session_id}' at '{server_address}:{tcp_port}' as '{username}'")
+        self.session_id = session_id
+        self.is_host = False
+        self.server_address = server_address
+        
+        try:
+            # Test server connectivity first
+            logger.info(f"Testing connectivity to {server_address}:{tcp_port}")
+            if not self._test_server_connectivity(server_address, tcp_port, timeout=3.0):
+                error_msg = (f"Cannot reach server at {server_address}:{tcp_port}.\n\n"
+                           f"Please check:\n"
+                           f"• The host has started the session\n"
+                           f"• Both devices are on the same network\n"
+                           f"• The IP address and ports are correct\n"
+                           f"• Firewall allows connections on port {tcp_port}")
+                
+                QMessageBox.critical(self, "Server Not Reachable", error_msg)
+                return
+            
+            # Create client with specified ports
+            self.client = LANClient(
+                username, 
+                server_address, 
+                session_id,
+                tcp_port=tcp_port,
+                udp_port=udp_port
+            )
+            self.client.set_app_reference(self)
+            self.media_capture = MediaCaptureManager(self.client)
+            
+            # Connect client signals
+            self._connect_client_signals()
+            
+            # Connect to server
+            logger.info(f"Server is reachable, attempting to connect to {server_address}:{tcp_port}")
+            if self.client.connect():
+                # Wait for authentication (will trigger _create_main_window via signal)
+                logger.info("Successfully connected to server, waiting for authentication")
+            else:
+                QMessageBox.critical(self, "Connection Failed",
+                                   f"Failed to connect to server at {server_address}:{tcp_port}.")
+                
+        except Exception as e:
+            logger.error(f"Failed to join session: {e}")
+            QMessageBox.critical(self, "Connection Error", f"Failed to join session: {e}")
+    
+    def _test_server_connectivity(self, server_address: str, port: int, timeout: float = 5.0) -> bool:
+        """Test if server is reachable on the specified port."""
+        try:
+            test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            test_socket.settimeout(timeout)
+            result = test_socket.connect_ex((server_address, port))
+            test_socket.close()
+            return result == 0
+        except Exception as e:
+            logger.debug(f"Connectivity test failed: {e}")
+            return False
     
     def _connect_client_signals(self):
         """Connect client network signals to handlers."""

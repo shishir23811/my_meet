@@ -16,6 +16,23 @@ A robust, standalone, LAN-only multi-user communication application built with P
   - **Multicast**: Send to selected users
   - **Unicast**: Send to one specific user
 
+## Platform Support
+
+| Platform | Status | Setup Guide |
+|----------|--------|-------------|
+| **Windows 10/11** | ✅ Fully Supported | Built-in instructions |
+| **Ubuntu 20.04+** | ✅ Fully Supported | See `UBUNTU_SETUP.md` |
+| **Other Linux** | ✅ Should Work | Adapt Ubuntu instructions |
+| **macOS** | ⚠️ Untested | Should work with minor adjustments |
+
+**Cross-Platform Features:**
+- ✅ Windows ↔ Ubuntu communication
+- ✅ All media features work on both platforms  
+- ✅ Same user interface and functionality
+- ✅ Network compatibility between different OS
+- ✅ **Firewall-free operation** - no administrator rights needed
+- ✅ **Smart port selection** - automatically finds available ports
+
 ## Project Structure
 
 ```
@@ -71,10 +88,40 @@ A robust, standalone, LAN-only multi-user communication application built with P
 
 ### Running the Application
 
-**Start the application**:
+**1. No Setup Required!**:
+```bash
+# The application now uses high-numbered ports (54321, 54322)
+# that typically don't require firewall configuration!
+# Just run the application - no administrator rights needed.
+```
+
+**Optional: Manual Firewall Setup (if needed)**:
+```bash
+# Windows (run as Administrator):
+setup_firewall.bat
+
+# Ubuntu/Linux:
+./setup_firewall_ubuntu.sh
+```
+
+**2. Start the application**:
 ```bash
 python app.py
 ```
+
+### 🔥 Connection Issues?
+
+If you get connection timeout errors when joining from another computer:
+
+1. **Try firewall-free approach**: See `FIREWALL_FREE_SETUP.md` (recommended)
+2. **Test connectivity**: `python test_connection.py <host_ip>`
+3. **Manual firewall setup** (if needed): 
+   - Windows: Run `setup_firewall.bat` as Administrator
+   - Ubuntu: Run `./setup_firewall_ubuntu.sh`
+4. **See detailed guides**: 
+   - `FIREWALL_FREE_SETUP.md` (no admin rights needed)
+   - `NETWORK_TROUBLESHOOTING.md` (general)
+   - `UBUNTU_SETUP.md` (Ubuntu-specific)
 
 ### Workflow
 

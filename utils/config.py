@@ -4,8 +4,9 @@ Handles application settings, network ports, and default values.
 """
 
 import json
+import socket
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -14,8 +15,10 @@ logger = setup_logger(__name__)
 PROJECT_ROOT = Path(__file__).parent.parent
 
 # Network configuration
-DEFAULT_TCP_PORT = 5555
-DEFAULT_UDP_PORT = 5556
+# Using high-numbered ports to avoid firewall issues
+# Ports 49152-65535 are typically unrestricted
+DEFAULT_TCP_PORT = 54321  # High port, less likely to be blocked
+DEFAULT_UDP_PORT = 54322  # High port, less likely to be blocked
 DEFAULT_HOST = "0.0.0.0"
 BUFFER_SIZE = 8192
 UDP_PACKET_SIZE = 1400  # Safe size for UDP to avoid fragmentation
@@ -110,6 +113,46 @@ class Config:
         for k in keys[:-1]:
             settings = settings.setdefault(k, {})
         settings[keys[-1]] = value
+
+def find_available_ports(start_port: int = 49152, count: int = 2) -> Tuple[int, int]:
+    """
+    Find available TCP and UDP ports starting from start_port.
+    
+    Args:
+        start_port: Starting port number (default: 49152 - dynamic port range)
+        count: Number of consecutive ports needed (default: 2 for TCP+UDP)
+    
+    Returns:
+        Tuple of (tcp_port, udp_port)
+    """
+    for port in range(start_port, 65535 - count):
+        tcp_port = port
+        udp_port = port + 1
+        
+        # Test TCP port
+        try:
+            tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            tcp_sock.bind(('', tcp_port))
+            tcp_sock.close()
+        except OSError:
+            continue  # Port in use, try next
+        
+        # Test UDP port
+        try:
+            udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            udp_sock.bind(('', udp_port))
+            udp_sock.close()
+            
+            # Both ports available
+            logger.info(f"Found available ports: TCP {tcp_port}, UDP {udp_port}")
+            return tcp_port, udp_port
+            
+        except OSError:
+            continue  # Port in use, try next
+    
+    # Fallback to default ports if no available ports found
+    logger.warning("No available ports found in dynamic range, using defaults")
+    return DEFAULT_TCP_PORT, DEFAULT_UDP_PORT
 
 # Global configuration instance
 config = Config()

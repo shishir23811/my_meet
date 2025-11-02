@@ -94,10 +94,16 @@ def diagnose_connection(server_ip: str):
     print("1. Ensure both devices are on the same network")
     print("2. Check that the host has started the session")
     print("3. Verify the IP address is correct")
-    print("4. Check Windows Firewall settings:")
-    print(f"   • Allow incoming connections on port {DEFAULT_TCP_PORT}")
-    print(f"   • Allow incoming connections on port {DEFAULT_UDP_PORT}")
-    print("5. Try temporarily disabling firewall for testing")
+    if sys.platform.startswith('win'):
+        print("4. Check Windows Firewall settings:")
+        print(f"   • Allow incoming connections on port {DEFAULT_TCP_PORT}")
+        print(f"   • Allow incoming connections on port {DEFAULT_UDP_PORT}")
+        print("5. Try temporarily disabling firewall for testing")
+    else:
+        print("4. Check Ubuntu Firewall (UFW) settings:")
+        print(f"   • sudo ufw allow {DEFAULT_TCP_PORT}/tcp")
+        print(f"   • sudo ufw allow {DEFAULT_UDP_PORT}/udp")
+        print("5. Run: ./setup_firewall_ubuntu.sh")
     print("6. Ensure no other application is using these ports")
     print()
 
