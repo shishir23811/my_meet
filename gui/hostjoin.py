@@ -262,8 +262,11 @@ class HostJoinWindow(QWidget):
         # Session ID input
         layout.addWidget(QLabel("Session ID:"))
         self.join_session_id = QLineEdit()
-        self.join_session_id.setPlaceholderText("Enter session ID")
+        self.join_session_id.setPlaceholderText("Enter session ID (e.g., A1B2C3D4)")
+        self.join_session_id.setMaxLength(8)  # Session IDs are 8 characters
         self.join_session_id.setMinimumHeight(40)
+        # Convert to uppercase as user types
+        self.join_session_id.textChanged.connect(lambda text: self.join_session_id.setText(text.upper()) if text != text.upper() else None)
         layout.addWidget(self.join_session_id)
         
         # Server address input
@@ -375,12 +378,25 @@ class HostJoinWindow(QWidget):
     
     def start_joining(self):
         """Start joining a session."""
-        session_id = self.join_session_id.text().strip()
+        session_id = self.join_session_id.text().strip().upper()  # Ensure uppercase
         server_address = self.join_server_address.text().strip()
         
         if not session_id:
             QMessageBox.warning(self, "Input Error", 
                               "Please enter a session ID.")
+            return
+        
+        # Validate session ID format
+        if len(session_id) != 8:
+            QMessageBox.warning(self, "Invalid Session ID", 
+                              f"Session ID must be 8 characters long.\nYou entered: '{session_id}' ({len(session_id)} characters)")
+            return
+        
+        # Check if session ID contains only valid hex characters
+        valid_chars = set('0123456789ABCDEF')
+        if not set(session_id).issubset(valid_chars):
+            QMessageBox.warning(self, "Invalid Session ID", 
+                              f"Session ID must contain only numbers and letters A-F.\nYou entered: '{session_id}'")
             return
         
         if not server_address:
@@ -389,6 +405,7 @@ class HostJoinWindow(QWidget):
             return
         
         logger.info(f"Attempting to join session '{session_id}' at '{server_address}' as '{self.username}'")
+        logger.info(f"Session ID length: {len(session_id)}, characters: {[c for c in session_id]}")
         self.join_session.emit(session_id, server_address, self.username)
     
     def handle_go_back(self):

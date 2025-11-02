@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QApplication, QStackedWidget, QMessageBox
 from PySide6.QtCore import Qt, Slot
 from utils.logger import setup_logger
 from utils.error_manager import error_manager, ErrorCategory, ErrorSeverity
+from utils.config import DEFAULT_TCP_PORT, DEFAULT_UDP_PORT
 from gui.login import LoginWindow
 from gui.hostjoin import HostJoinWindow
 from gui.mainapp import MainAppWindow
@@ -148,6 +149,18 @@ class LANCommunicatorApp(QStackedWidget):
                 self.server.stop()
                 self.server = None
     
+    def _test_server_connectivity(self, server_address: str, port: int, timeout: float = 5.0) -> bool:
+        """Test if server is reachable on the specified port."""
+        try:
+            test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            test_socket.settimeout(timeout)
+            result = test_socket.connect_ex((server_address, port))
+            test_socket.close()
+            return result == 0
+        except Exception as e:
+            logger.debug(f"Connectivity test failed: {e}")
+            return False
+
     @Slot(str, str, str)
     def on_join_session(self, session_id: str, server_address: str, username: str):
         """Handle joining a session."""
@@ -157,8 +170,29 @@ class LANCommunicatorApp(QStackedWidget):
         self.server_address = server_address
         
         try:
-            # Create client
-            self.client = LANClient(username, server_address, session_id)
+            # Test server connectivity first
+            logger.info(f"Testing connectivity to {server_address}:{DEFAULT_TCP_PORT}")
+            if not self._test_server_connectivity(server_address, DEFAULT_TCP_PORT, timeout=3.0):
+                error_msg = (f"Cannot reach server at {server_address}:{DEFAULT_TCP_PORT}.\n\n"
+                           f"Please check:\n"
+                           f"• The host has started the session\n"
+                           f"• Both devices are on the same network\n"
+                           f"• The IP address is correct\n"
+                           f"• Firewall allows connections on port {DEFAULT_TCP_PORT}\n\n"
+                           f"For detailed diagnostics, run:\n"
+                           f"python network_diagnostics.py {server_address}")
+                
+                QMessageBox.critical(self, "Server Not Reachable", error_msg)
+                return
+            
+            # Create client with default ports (server should be using standard ports)
+            self.client = LANClient(
+                username, 
+                server_address, 
+                session_id,
+                tcp_port=DEFAULT_TCP_PORT,
+                udp_port=DEFAULT_UDP_PORT
+            )
             self.client.set_app_reference(self)
             self.media_capture = MediaCaptureManager(self.client)
             
@@ -166,17 +200,44 @@ class LANCommunicatorApp(QStackedWidget):
             self._connect_client_signals()
             
             # Connect to server
+            logger.info(f"Server is reachable, attempting to connect to {server_address}:{DEFAULT_TCP_PORT}")
             if self.client.connect():
                 # Wait for authentication (will trigger _create_main_window via signal)
-                pass
+                logger.info("Successfully connected to server, waiting for authentication")
             else:
-                QMessageBox.critical(self, "Connection Failed",
-                                   "Failed to connect to server.")
+                error_msg = (f"Failed to connect to server at {server_address}:{DEFAULT_TCP_PORT}.\n\n"
+                           f"Possible causes:\n"
+                           f"• Server is not running or not reachable\n"
+                           f"• Firewall is blocking the connection\n"
+                           f"• Wrong IP address or port\n"
+                           f"• Network connectivity issues\n\n"
+                           f"Please check that:\n"
+                           f"1. The host has started the session\n"
+                           f"2. Both devices are on the same network\n"
+                           f"3. Firewall allows connections on port {DEFAULT_TCP_PORT}")
+                
+                QMessageBox.critical(self, "Connection Failed", error_msg)
                 
         except Exception as e:
             logger.error(f"Failed to join session: {e}")
-            QMessageBox.critical(self, "Error",
-                               f"Failed to join session: {e}")
+            
+            # Provide more specific error messages
+            error_msg = str(e)
+            if "10060" in error_msg or "timed out" in error_msg.lower():
+                error_msg = (f"Connection timed out when trying to reach {server_address}:{DEFAULT_TCP_PORT}.\n\n"
+                           f"This usually means:\n"
+                           f"• The server is not running at that address\n"
+                           f"• A firewall is blocking the connection\n"
+                           f"• The devices are not on the same network\n\n"
+                           f"Please verify the server address and try again.")
+            elif "10061" in error_msg or "connection refused" in error_msg.lower():
+                error_msg = (f"Connection refused by {server_address}:{DEFAULT_TCP_PORT}.\n\n"
+                           f"This usually means:\n"
+                           f"• No server is listening on that port\n"
+                           f"• The host hasn't started the session yet\n\n"
+                           f"Please make sure the host has started the session.")
+            
+            QMessageBox.critical(self, "Connection Error", error_msg)
     
     def _connect_client_signals(self):
         """Connect client network signals to handlers."""

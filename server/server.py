@@ -59,6 +59,8 @@ class LANServer:
         self.tcp_port = tcp_port or config.get('network.tcp_port', DEFAULT_TCP_PORT)
         self.udp_port = udp_port or config.get('network.udp_port', DEFAULT_UDP_PORT)
         
+        logger.info(f"LANServer initialized with session_id: '{self.session_id}'")
+        
         # Client management
         self.clients: Dict[str, ClientConnection] = {}  # username -> ClientConnection
         self.clients_lock = threading.Lock()
@@ -293,8 +295,12 @@ class LANServer:
             username = message.get('username')
             session_id = message.get('session_id')
             
+            logger.info(f"Authentication request: username='{username}', session_id='{session_id}'")
+            logger.info(f"Expected session_id: '{self.session_id}'")
+            
             if session_id != self.session_id:
                 # Invalid session ID
+                logger.warning(f"Session ID mismatch: received '{session_id}', expected '{self.session_id}'")
                 response = create_message(
                     MessageType.AUTH_RESPONSE,
                     success=False,

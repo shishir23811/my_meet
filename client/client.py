@@ -70,6 +70,8 @@ class LANClient(QObject):
         self.tcp_port = tcp_port or config.get('network.tcp_port', DEFAULT_TCP_PORT)
         self.udp_port = udp_port or config.get('network.udp_port', DEFAULT_UDP_PORT)
         
+        logger.info(f"LANClient initialized with session_id: '{self.session_id}'")
+        
         # Sockets
         self.tcp_socket: Optional[socket.socket] = None
         self.udp_socket: Optional[socket.socket] = None
@@ -133,6 +135,7 @@ class LANClient(QObject):
             self.connected.emit()
             
             # Send authentication request
+            logger.info(f"Sending authentication: username='{self.username}', session_id='{self.session_id}'")
             auth_msg = create_message(
                 MessageType.AUTH_REQUEST,
                 username=self.username,
