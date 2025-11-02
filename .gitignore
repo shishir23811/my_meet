@@ -39,10 +39,11 @@ logs/
 *.log
 
 # Configuration
-config.json
+# config.json
 
 # Temporary files
-temp_files/
+temp_files/*
+!temp_files/.gitkeep
 *.tmp
 
 # OS
@@ -65,3 +66,5 @@ profiles.json
 #tests
 /tests/
 test*.py
+
+temp_files/

@@ -114,6 +114,7 @@ class LANCommunicatorApp(QStackedWidget):
                 tcp_port=self.server.tcp_port,
                 udp_port=self.server.udp_port
             )
+            self.client.set_app_reference(self)
             self.media_capture = MediaCaptureManager(self.client)
             
             # Connect client signals
@@ -158,6 +159,7 @@ class LANCommunicatorApp(QStackedWidget):
         try:
             # Create client
             self.client = LANClient(username, server_address, session_id)
+            self.client.set_app_reference(self)
             self.media_capture = MediaCaptureManager(self.client)
             
             # Connect client signals
@@ -219,6 +221,10 @@ class LANCommunicatorApp(QStackedWidget):
         self.main_window.start_screen_share.connect(self.on_start_screen_share)
         self.main_window.stop_screen_share.connect(self.on_stop_screen_share)
         self.main_window.leave_session.connect(self.on_leave_session)
+        
+        # Connect media manager for audio strength monitoring
+        if self.media_capture:
+            self.main_window.set_media_manager(self.media_capture)
         
         self.addWidget(self.main_window)
         self.setCurrentWidget(self.main_window)
@@ -293,9 +299,29 @@ class LANCommunicatorApp(QStackedWidget):
     
     @Slot(str, bytes)
     def on_audio_data_received(self, username: str, audio_data: bytes):
-        """Handle received audio data."""
+        """Handle received audio data and detect speaking."""
         if self.media_capture:
             self.media_capture.process_received_audio(username, audio_data)
+        
+        # Detect if user is speaking based on audio data
+        if self.main_window and audio_data:
+            try:
+                import numpy as np
+                # Convert audio data to numpy array for analysis
+                audio_array = np.frombuffer(audio_data, dtype=np.int16)
+                
+                # Calculate RMS to detect speaking
+                rms = np.sqrt(np.mean(audio_array.astype(np.float32) ** 2))
+                normalized_rms = rms / 32767.0  # Normalize for 16-bit audio
+                
+                # Simple threshold for speaking detection
+                is_speaking = normalized_rms > 0.01  # Adjust threshold as needed
+                
+                # Update user speaking state in GUI
+                self.main_window.update_user_speaking_state(username, is_speaking)
+                
+            except Exception as e:
+                logger.error(f"Error detecting speaking for {username}: {e}")
     
     @Slot(str, bytes)
     def on_video_data_received(self, username: str, video_data: bytes):
@@ -706,3 +732,13 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+    
+    def update_self_video_frame(self, frame_data: bytes):
+        """Update self video frame in GUI."""
+        if self.main_window:
+            self.main_window.update_user_video_frame(self.current_username, frame_data)
+    
+    def on_user_video_stopped(self, username: str):
+        """Handle when a user stops their video."""
+        if self.main_window:
+            self.main_window.clear_user_video(username)

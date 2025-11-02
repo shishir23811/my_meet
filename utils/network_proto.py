@@ -266,5 +266,5 @@ def generate_stream_id(username: str, stream_type: StreamType) -> int:
         32-bit stream identifier
     """
     # Simple hash-based ID generation
-    hash_val = hash(username) & 0x7FFFFFFF  # Keep positive
+    hash_val = hash(username) & 0x0FFFFFFF  # Keep within 28 bits to allow for shift
     return (hash_val << 4) | stream_type.value

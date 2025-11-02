@@ -903,6 +903,15 @@ class LANClient(QObject):
         """Get current session state for debugging/monitoring."""
         return self.session_state.copy()
     
+    def set_app_reference(self, app):
+        """Set reference to the main app for GUI updates."""
+        self.app = app
+    
+    def update_self_video_frame(self, frame_data: bytes):
+        """Update self video frame in GUI."""
+        if hasattr(self, 'app') and self.app:
+            self.app.update_self_video_frame(frame_data)
+    
     def is_reconnecting(self) -> bool:
         """Check if reconnection is currently in progress."""
         return self.reconnection_in_progress

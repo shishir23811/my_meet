@@ -24,7 +24,6 @@ UDP_PACKET_SIZE = 1400  # Safe size for UDP to avoid fragmentation
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
 CHUNK_SIZE = 64 * 1024  # 64 KB chunks for file transfer
 TEMP_FILES_DIR = PROJECT_ROOT / "temp_files"
-TEMP_FILES_DIR.mkdir(exist_ok=True)
 
 # Media configuration
 VIDEO_WIDTH = 640

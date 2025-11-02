@@ -26,6 +26,7 @@ class AudioCapture:
     
     Captures audio from microphone and sends via LANClient UDP packets.
     Handles device detection, error recovery, and resource cleanup.
+    Includes real-time audio strength detection.
     """
     
     def __init__(self, client):
@@ -41,6 +42,16 @@ class AudioCapture:
         self.dtype = np.int16  # 16-bit PCM
         self.frame_duration = 0.02  # 20ms frames
         self.frames_per_buffer = int(self.sample_rate * self.frame_duration)
+        
+        # Audio strength detection
+        self.audio_strength = 0.0  # Current audio strength (0.0 to 1.0)
+        self.peak_strength = 0.0   # Peak strength in current session
+        self.strength_history = deque(maxlen=50)  # Last 50 measurements (1 second at 20ms frames)
+        self.strength_callback: Optional[Callable[[float, float], None]] = None  # Callback for strength updates
+        self.silence_threshold = 0.005  # Below this is considered silence (more sensitive)
+        self.speaking_threshold = 0.02  # Above this is considered speaking (more sensitive)
+        self.loud_threshold = 0.15     # Above this is considered loud speaking (more sensitive)
+        self.strength_smoothing = 0.3   # Less smoothing for more responsive detection
         
         # Try to import sounddevice
         try:
@@ -163,6 +174,10 @@ class AudioCapture:
             return
         
         try:
+            # Calculate audio strength from input data
+            raw_strength = self._calculate_audio_strength(indata)
+            self._update_strength_metrics(raw_strength)
+            
             # Convert to bytes for UDP transmission
             audio_bytes = indata.tobytes()
             
@@ -176,6 +191,198 @@ class AudioCapture:
     def get_error_message(self) -> str:
         """Get last error message."""
         return self.error_message
+    
+    # ========================================================================
+    # Audio Strength Detection Methods
+    # ========================================================================
+    
+    def set_strength_callback(self, callback: Callable[[float, float], None]):
+        """
+        Set callback function for audio strength updates.
+        
+        Args:
+            callback: Function that receives (current_strength, peak_strength) as parameters
+        """
+        self.strength_callback = callback
+    
+    def _calculate_audio_strength(self, audio_data: np.ndarray) -> float:
+        """
+        Calculate the audio strength (volume level) from audio data.
+        
+        Args:
+            audio_data: NumPy array of audio samples
+            
+        Returns:
+            Audio strength value between 0.0 and 1.0
+        """
+        try:
+            # Convert to float for calculations
+            audio_float = audio_data.astype(np.float32)
+            
+            # Calculate RMS (Root Mean Square) for overall volume
+            rms = np.sqrt(np.mean(audio_float ** 2))
+            
+            # Normalize to 0-1 range (assuming 16-bit audio range)
+            max_amplitude = 32767.0  # Maximum value for int16
+            normalized_rms = rms / max_amplitude
+            
+            # Use simpler linear scaling for better responsiveness
+            # Apply a small amplification to make quiet sounds more detectable
+            strength = min(normalized_rms * 10.0, 1.0)  # Amplify by 10x, cap at 1.0
+            
+            return strength
+            
+        except Exception as e:
+            logger.error(f"Error calculating audio strength: {e}")
+            return 0.0
+    
+    def _update_strength_metrics(self, raw_strength: float):
+        """
+        Update audio strength metrics with smoothing and history tracking.
+        
+        Args:
+            raw_strength: Raw calculated strength value
+        """
+        try:
+            # Apply smoothing to reduce jitter
+            if self.audio_strength == 0.0:
+                # First measurement
+                self.audio_strength = raw_strength
+            else:
+                # Exponential moving average for smoothing
+                self.audio_strength = (self.strength_smoothing * self.audio_strength + 
+                                     (1 - self.strength_smoothing) * raw_strength)
+            
+            # Update peak strength
+            if self.audio_strength > self.peak_strength:
+                self.peak_strength = self.audio_strength
+            
+            # Add to history for trend analysis
+            self.strength_history.append(self.audio_strength)
+            
+            # Call callback if set
+            if self.strength_callback:
+                self.strength_callback(self.audio_strength, self.peak_strength)
+                
+        except Exception as e:
+            logger.error(f"Error updating strength metrics: {e}")
+    
+    def get_audio_strength(self) -> float:
+        """
+        Get current audio strength level.
+        
+        Returns:
+            Current audio strength (0.0 to 1.0)
+        """
+        return self.audio_strength
+    
+    def get_peak_strength(self) -> float:
+        """
+        Get peak audio strength since capture started.
+        
+        Returns:
+            Peak audio strength (0.0 to 1.0)
+        """
+        return self.peak_strength
+    
+    def get_average_strength(self, seconds: float = 1.0) -> float:
+        """
+        Get average audio strength over the specified time period.
+        
+        Args:
+            seconds: Time period in seconds (default: 1.0)
+            
+        Returns:
+            Average audio strength over the period
+        """
+        if not self.strength_history:
+            return 0.0
+        
+        # Calculate how many samples to include
+        samples_per_second = 1.0 / self.frame_duration  # 50 samples per second at 20ms frames
+        num_samples = min(int(seconds * samples_per_second), len(self.strength_history))
+        
+        if num_samples <= 0:
+            return 0.0
+        
+        # Get recent samples
+        recent_samples = list(self.strength_history)[-num_samples:]
+        return sum(recent_samples) / len(recent_samples)
+    
+    def is_speaking(self) -> bool:
+        """
+        Determine if the user is currently speaking.
+        
+        Returns:
+            True if audio level indicates speaking
+        """
+        return self.audio_strength > self.speaking_threshold
+    
+    def is_loud_speaking(self) -> bool:
+        """
+        Determine if the user is speaking loudly.
+        
+        Returns:
+            True if audio level indicates loud speaking
+        """
+        return self.audio_strength > self.loud_threshold
+    
+    def is_silent(self) -> bool:
+        """
+        Determine if the audio is currently silent.
+        
+        Returns:
+            True if audio level is below silence threshold
+        """
+        return self.audio_strength < self.silence_threshold
+    
+    def reset_peak_strength(self):
+        """Reset the peak strength measurement."""
+        self.peak_strength = 0.0
+    
+    def get_strength_level_description(self) -> str:
+        """
+        Get a human-readable description of the current audio strength level.
+        
+        Returns:
+            Description string (e.g., "Silent", "Speaking", "Loud")
+        """
+        if self.is_silent():
+            return "Silent"
+        elif self.is_loud_speaking():
+            return "Loud"
+        elif self.is_speaking():
+            return "Speaking"
+        else:
+            return "Quiet"
+    
+    def get_strength_percentage(self) -> int:
+        """
+        Get audio strength as a percentage (0-100).
+        
+        Returns:
+            Audio strength as percentage
+        """
+        return int(self.audio_strength * 100)
+    
+    def set_thresholds(self, silence: float = None, speaking: float = None, loud: float = None):
+        """
+        Set custom thresholds for audio level detection.
+        
+        Args:
+            silence: Silence threshold (0.0 to 1.0)
+            speaking: Speaking threshold (0.0 to 1.0)  
+            loud: Loud speaking threshold (0.0 to 1.0)
+        """
+        if silence is not None:
+            self.silence_threshold = max(0.0, min(1.0, silence))
+        if speaking is not None:
+            self.speaking_threshold = max(0.0, min(1.0, speaking))
+        if loud is not None:
+            self.loud_threshold = max(0.0, min(1.0, loud))
+        
+        logger.info(f"Audio thresholds updated: silence={self.silence_threshold:.3f}, "
+                   f"speaking={self.speaking_threshold:.3f}, loud={self.loud_threshold:.3f}")
 
 
 # ============================================================================
@@ -550,9 +757,15 @@ class VideoCapture:
                     success, jpeg_data = self.cv2.imencode('.jpg', frame, [self.cv2.IMWRITE_JPEG_QUALITY, 80])
                     
                     if success:
-                        # Send via client UDP
+                        jpeg_bytes = jpeg_data.tobytes()
+                        
+                        # Send via client UDP to other users
                         if self.client and hasattr(self.client, 'send_video_packet'):
-                            self.client.send_video_packet(jpeg_data.tobytes())
+                            self.client.send_video_packet(jpeg_bytes)
+                        
+                        # Send to local GUI for self-preview
+                        if hasattr(self.client, 'update_self_video_frame'):
+                            self.client.update_self_video_frame(jpeg_bytes)
                 
                 last_frame_time = current_time
                 frame_count += 1
@@ -588,28 +801,59 @@ class VideoCapture:
         if not self.cv2:
             return None
         
-        # Create a simple animated test pattern
-        import numpy as np
-        
-        # Create base pattern
-        frame = np.zeros((self.height, self.width, 3), dtype=np.uint8)
-        
-        # Add moving gradient
-        offset = (frame_count * 2) % self.width
-        for x in range(self.width):
-            color_val = int(128 + 127 * np.sin(2 * np.pi * (x + offset) / self.width))
-            frame[:, x] = [color_val, 100, 200 - color_val]
-        
-        # Add text
-        text = f"Test Pattern - Frame {frame_count}"
-        font = self.cv2.FONT_HERSHEY_SIMPLEX
-        text_size = self.cv2.getTextSize(text, font, 0.7, 2)[0]
-        text_x = (self.width - text_size[0]) // 2
-        text_y = (self.height + text_size[1]) // 2
-        
-        self.cv2.putText(frame, text, (text_x, text_y), font, 0.7, (255, 255, 255), 2)
-        
-        return frame
+        try:
+            # Create a simple animated test pattern
+            import numpy as np
+            
+            # Create base pattern with a nice gradient background
+            frame = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+            
+            # Add moving gradient background
+            offset = (frame_count * 3) % (self.width * 2)  # Slower movement
+            for y in range(self.height):
+                for x in range(self.width):
+                    # Create a diagonal gradient with animation
+                    gradient_pos = (x + y + offset) % (self.width + self.height)
+                    normalized_pos = gradient_pos / (self.width + self.height)
+                    
+                    # Generate RGB values with smooth transitions
+                    r = int(128 + 127 * np.sin(2 * np.pi * normalized_pos))
+                    g = int(128 + 127 * np.sin(2 * np.pi * normalized_pos + np.pi / 3))
+                    b = int(128 + 127 * np.sin(2 * np.pi * normalized_pos + 2 * np.pi / 3))
+                    
+                    frame[y, x] = [b, g, r]  # OpenCV uses BGR format
+            
+            # Add animated circles
+            center_x, center_y = self.width // 2, self.height // 2
+            radius = int(50 + 30 * np.sin(frame_count * 0.1))
+            self.cv2.circle(frame, (center_x, center_y), radius, (255, 255, 255), 2)
+            
+            # Add text overlay
+            text = f"Test Pattern - Frame {frame_count}"
+            font = self.cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 0.7
+            thickness = 2
+            
+            # Get text size for centering
+            text_size = self.cv2.getTextSize(text, font, font_scale, thickness)[0]
+            text_x = (self.width - text_size[0]) // 2
+            text_y = (self.height + text_size[1]) // 2
+            
+            # Add text with black outline for better visibility
+            self.cv2.putText(frame, text, (text_x, text_y), font, font_scale, (0, 0, 0), thickness + 2)
+            self.cv2.putText(frame, text, (text_x, text_y), font, font_scale, (255, 255, 255), thickness)
+            
+            # Add timestamp in corner
+            timestamp_text = f"Time: {int(time.time()) % 10000}"
+            self.cv2.putText(frame, timestamp_text, (10, 30), font, 0.5, (255, 255, 255), 1)
+            
+            return frame
+            
+        except Exception as e:
+            logger.error(f"Error generating test pattern: {e}")
+            # Return a simple solid color frame as fallback
+            fallback_frame = np.full((self.height, self.width, 3), [64, 128, 192], dtype=np.uint8)
+            return fallback_frame
     
     def set_resolution(self, width: int, height: int) -> bool:
         """Set video resolution."""
@@ -626,7 +870,6 @@ class VideoCapture:
     def get_error_message(self) -> str:
         """Get last error message."""
         return self.error_message
-
 
 # ============================================================================
 # Screen Capture Implementation
@@ -771,16 +1014,26 @@ class ScreenCapture:
                 monitor = sct.monitors[1]  # Primary monitor
                 screenshot = sct.grab(monitor)
                 
-                # Convert to PIL Image for JPEG encoding
-                from PIL import Image
-                img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
+                # Convert to OpenCV format for JPEG encoding
+                import numpy as np
+                import cv2
                 
-                # Save as JPEG to bytes
-                import io
-                jpeg_buffer = io.BytesIO()
-                img.save(jpeg_buffer, format='JPEG', quality=self.jpeg_quality)
+                # Convert BGRA to RGB using numpy
+                img_array = np.frombuffer(screenshot.bgra, dtype=np.uint8)
+                img_array = img_array.reshape((screenshot.height, screenshot.width, 4))
                 
-                return jpeg_buffer.getvalue()
+                # Convert BGRA to RGB (OpenCV uses BGR, so we need RGB for proper colors)
+                img_rgb = cv2.cvtColor(img_array, cv2.COLOR_BGRA2RGB)
+                
+                # Encode as JPEG using OpenCV
+                encode_params = [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality]
+                success, jpeg_buffer = cv2.imencode('.jpg', img_rgb, encode_params)
+                
+                if success:
+                    return jpeg_buffer.tobytes()
+                else:
+                    logger.error("Failed to encode screen capture as JPEG")
+                    return b''
                 
         except Exception as e:
             logger.error(f"Screen capture error: {e}")
@@ -791,7 +1044,6 @@ class ScreenCapture:
         """Get last error message."""
         return self.error_message
 
-
 # ============================================================================
 # Enhanced Media Capture Manager
 # ============================================================================
@@ -800,7 +1052,8 @@ class MediaCaptureManager:
     """
     Enhanced media capture manager replacing MediaCaptureStub.
     
-    Manages audio, video, and screen capture with comprehensive error handling.
+    Manages audio, video, and screen capture with comprehensive error handling
+    and audio strength detection capabilities.
     """
     
     def __init__(self, client):
@@ -826,7 +1079,10 @@ class MediaCaptureManager:
         
         logger.info("MediaCaptureManager initialized")
     
-    # Audio methods
+    # ========================================================================
+    # Audio Methods with Strength Detection
+    # ========================================================================
+    
     def start_audio(self) -> bool:
         """Start audio capture and playback."""
         # Start playback first
@@ -861,7 +1117,129 @@ class MediaCaptureManager:
         if self.audio_playback:
             self.audio_playback.add_audio_data(username, audio_data)
     
-    # Video methods
+    # Audio strength detection methods
+    def set_audio_strength_callback(self, callback: Callable[[float, float], None]):
+        """
+        Set callback for audio strength updates.
+        
+        Args:
+            callback: Function that receives (current_strength, peak_strength)
+        """
+        if self.audio_capture:
+            self.audio_capture.set_strength_callback(callback)
+    
+    def get_audio_strength(self) -> float:
+        """
+        Get current audio strength level.
+        
+        Returns:
+            Current audio strength (0.0 to 1.0)
+        """
+        if self.audio_capture:
+            return self.audio_capture.get_audio_strength()
+        return 0.0
+    
+    def get_peak_audio_strength(self) -> float:
+        """
+        Get peak audio strength for current session.
+        
+        Returns:
+            Peak audio strength (0.0 to 1.0)
+        """
+        if self.audio_capture:
+            return self.audio_capture.get_peak_strength()
+        return 0.0
+    
+    def get_average_audio_strength(self, seconds: float = 1.0) -> float:
+        """
+        Get average audio strength over recent history.
+        
+        Args:
+            seconds: Time period in seconds (default: 1.0)
+        
+        Returns:
+            Average audio strength (0.0 to 1.0)
+        """
+        if self.audio_capture:
+            return self.audio_capture.get_average_strength(seconds)
+        return 0.0
+    
+    def is_user_speaking(self) -> bool:
+        """
+        Check if user is currently speaking.
+        
+        Returns:
+            True if audio strength is above speaking threshold
+        """
+        if self.audio_capture:
+            return self.audio_capture.is_speaking()
+        return False
+    
+    def is_user_speaking_loudly(self) -> bool:
+        """
+        Check if user is speaking loudly.
+        
+        Returns:
+            True if audio strength is above loud speaking threshold
+        """
+        if self.audio_capture:
+            return self.audio_capture.is_loud_speaking()
+        return False
+    
+    def is_user_silent(self) -> bool:
+        """
+        Check if user is currently silent.
+        
+        Returns:
+            True if audio strength is below silence threshold
+        """
+        if self.audio_capture:
+            return self.audio_capture.is_silent()
+        return True
+    
+    def get_audio_strength_description(self) -> str:
+        """
+        Get human-readable description of current audio strength level.
+        
+        Returns:
+            String description of current audio level
+        """
+        if self.audio_capture:
+            return self.audio_capture.get_strength_level_description()
+        return "No Audio"
+    
+    def get_audio_strength_percentage(self) -> int:
+        """
+        Get audio strength as a percentage (0-100).
+        
+        Returns:
+            Audio strength as percentage
+        """
+        if self.audio_capture:
+            return self.audio_capture.get_strength_percentage()
+        return 0
+    
+    def reset_peak_audio_strength(self):
+        """Reset the peak audio strength measurement."""
+        if self.audio_capture:
+            self.audio_capture.reset_peak_strength()
+    
+    def set_audio_thresholds(self, silence: float = None, speaking: float = None, loud: float = None):
+        """
+        Set custom thresholds for audio level detection.
+        
+        Args:
+            silence: Silence threshold (0.0 to 1.0)
+            speaking: Speaking threshold (0.0 to 1.0)  
+            loud: Loud speaking threshold (0.0 to 1.0)
+        """
+        if self.audio_capture:
+            self.audio_capture.set_thresholds(silence, speaking, loud)
+    
+    # ========================================================================
+    # Video Methods
+    # ========================================================================
+    
     def start_video(self) -> bool:
         """Start video capture."""
         success = self.video_capture.start_capture()
@@ -884,7 +1262,10 @@ class MediaCaptureManager:
         """Check if video capture is active."""
         return self.video_capture.is_active
     
-    # Screen sharing methods
+    # ========================================================================
+    # Screen Sharing Methods
+    # ========================================================================
+    
     def start_screen_share(self) -> bool:
         """Start screen sharing."""
         success = self.screen_capture.start_sharing()
@@ -907,7 +1288,10 @@ class MediaCaptureManager:
         """Check if screen sharing is active."""
         return self.screen_capture.is_sharing
     
-    # Error reporting
+    # ========================================================================
+    # Error Reporting Methods
+    # ========================================================================
+    
     def get_audio_error(self) -> str:
         """Get audio capture error message."""
         return self.audio_capture.get_error_message()
@@ -920,6 +1304,10 @@ class MediaCaptureManager:
         """Get screen capture error message."""
         return self.screen_capture.get_error_message()
     
+    def get_playback_error(self) -> str:
+        """Get audio playback error message."""
+        return self.audio_playback.get_error_message() if self.audio_playback else ""
+    
     def cleanup(self):
         """Cleanup all media capture resources."""
         logger.info("Cleaning up media capture resources...")
@@ -927,146 +1315,6 @@ class MediaCaptureManager:
         self.stop_video()
         self.stop_screen_share()
         logger.info("Media capture cleanup complete")
-    
-    def get_playback_error(self) -> str:
-        """Get audio playback error message."""
-        return self.audio_playback.get_error_message() if self.audio_playback else ""
-    
-    def handle_network_interruption(self):
-        """Handle network interruption for media streams."""
-        try:
-            logger.info("Handling network interruption for media streams...")
-            
-            # Pause media streams but don't fully stop them
-            if self.is_audio_active():
-                logger.info("Pausing audio capture due to network interruption")
-                # Don't stop completely, just pause transmission
-                
-            if self.is_video_active():
-                logger.info("Pausing video capture due to network interruption")
-                # Don't stop completely, just pause transmission
-                
-            if self.is_screen_sharing():
-                logger.info("Pausing screen sharing due to network interruption")
-                # Don't stop completely, just pause transmission
-                
-        except Exception as e:
-            logger.error(f"Error handling network interruption: {e}")
-    
-    def handle_network_recovery(self):
-        """Handle network recovery for media streams."""
-        try:
-            current_time = time.time()
-            
-            # Check recovery cooldown
-            if self.recovery_in_progress or (current_time - self.last_recovery_attempt) < self.recovery_cooldown:
-                logger.debug("Media recovery already in progress or in cooldown period")
-                return
-            
-            self.recovery_in_progress = True
-            self.last_recovery_attempt = current_time
-            
-            logger.info("Handling network recovery for media streams...")
-            
-            # Check network quality before attempting recovery
-            if hasattr(self.client, 'get_network_quality'):
-                network_quality = self.client.get_network_quality()
-                if network_quality < 0.3:
-                    logger.info("Network quality too poor for media recovery, waiting...")
-                    self.recovery_in_progress = False
-                    return
-            
-            # Attempt to recover active streams
-            recovery_success = True
-            
-            # Get current media state from client session
-            if hasattr(self.client, 'session_state'):
-                media_state = self.client.session_state.get('media_state', {})
-                
-                if media_state.get('audio_active', False) and not self.is_audio_active():
-                    logger.info("Attempting to recover audio stream...")
-                    if not self._recover_audio_stream():
-                        recovery_success = False
-                
-                if media_state.get('video_active', False) and not self.is_video_active():
-                    logger.info("Attempting to recover video stream...")
-                    if not self._recover_video_stream():
-                        recovery_success = False
-                
-                if media_state.get('screen_sharing', False) and not self.is_screen_sharing():
-                    logger.info("Attempting to recover screen sharing...")
-                    if not self._recover_screen_share():
-                        recovery_success = False
-            
-            if recovery_success:
-                logger.info("Media stream recovery completed successfully")
-            else:
-                logger.warning("Some media streams could not be recovered")
-            
-            self.recovery_in_progress = False
-            
-        except Exception as e:
-            logger.error(f"Error during network recovery: {e}")
-            self.recovery_in_progress = False
-    
-    def _recover_audio_stream(self) -> bool:
-        """Recover audio stream after network interruption."""
-        try:
-            # Check if audio devices are still available
-            if hasattr(self.audio_capture, '_detect_devices'):
-                self.audio_capture._detect_devices()
-            
-            # Restart audio capture
-            success = self.audio_capture.start_capture()
-            if success:
-                # Also restart playback if it was stopped
-                if not self.audio_playback.is_active:
-                    self.audio_playback.start_playback()
-                logger.info("Audio stream recovered successfully")
-                return True
-            else:
-                logger.warning("Failed to recover audio stream")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error recovering audio stream: {e}")
-            return False
-    
-    def _recover_video_stream(self) -> bool:
-        """Recover video stream after network interruption."""
-        try:
-            # Check if camera is still available
-            if hasattr(self.video_capture, '_detect_cameras'):
-                self.video_capture._detect_cameras()
-            
-            # Restart video capture
-            success = self.video_capture.start_capture()
-            if success:
-                logger.info("Video stream recovered successfully")
-                return True
-            else:
-                logger.warning("Failed to recover video stream")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error recovering video stream: {e}")
-            return False
-    
-    def _recover_screen_share(self) -> bool:
-        """Recover screen sharing after network interruption."""
-        try:
-            # Restart screen sharing
-            success = self.screen_capture.start_sharing()
-            if success:
-                logger.info("Screen sharing recovered successfully")
-                return True
-            else:
-                logger.warning("Failed to recover screen sharing")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error recovering screen sharing: {e}")
-            return False
     
     def check_media_health(self) -> dict:
         """
@@ -1079,7 +1327,9 @@ class MediaCaptureManager:
             'audio': {
                 'active': self.is_audio_active(),
                 'error': self.get_audio_error(),
-                'healthy': self.is_audio_active() and not self.get_audio_error()
+                'healthy': self.is_audio_active() and not self.get_audio_error(),
+                'strength': self.get_audio_strength(),
+                'speaking': self.is_user_speaking()
             },
             'video': {
                 'active': self.is_video_active(),

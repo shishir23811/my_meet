@@ -20,6 +20,143 @@ import os
 
 logger = setup_logger(__name__)
 
+class UserBox(QWidget):
+    """Individual user box widget for Google Meet-style grid."""
+    
+    def __init__(self, username: str, is_self: bool = False):
+        super().__init__()
+        self.username = username
+        self.is_self = is_self
+        self.is_speaking = False
+        self.has_video = False
+        self.setup_ui()
+    
+    def setup_ui(self):
+        """Set up the user box UI."""
+        self.setFixedSize(180, 135)  # Fixed size for consistent grid
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(5)
+        
+        # Video area (can show video or initials)
+        self.video_area = QLabel()
+        self.video_area.setAlignment(Qt.AlignCenter)
+        self.video_area.setScaledContents(True)  # Scale video to fit
+        
+        # Store initials for fallback
+        self.initials = ''.join([name[0].upper() for name in self.username.split()[:2]])
+        
+        # Set initial placeholder style and content
+        self._set_placeholder_mode()
+        
+        layout.addWidget(self.video_area, 1)
+        
+        # Username label
+        self.name_label = QLabel(self.username)
+        self.name_label.setAlignment(Qt.AlignCenter)
+        self.name_label.setStyleSheet("""
+            QLabel {
+                background-color: rgba(0, 0, 0, 0.7);
+                color: white;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+        """)
+        
+        # Add "(You)" indicator for self
+        if self.is_self:
+            self.name_label.setText(f"{self.username} (You)")
+        
+        layout.addWidget(self.name_label)
+        
+        # Set initial border style
+        self.update_speaking_state(False)
+    
+    def update_speaking_state(self, is_speaking: bool):
+        """Update the visual state based on speaking status."""
+        self.is_speaking = is_speaking
+        
+        if is_speaking:
+            # Green border when speaking
+            self.setStyleSheet("""
+                UserBox {
+                    border: 3px solid #4CAF50;
+                    border-radius: 10px;
+                    background-color: rgba(76, 175, 80, 0.1);
+                }
+            """)
+        else:
+            # Normal border when not speaking
+            self.setStyleSheet("""
+                UserBox {
+                    border: 2px solid #ddd;
+                    border-radius: 10px;
+                    background-color: white;
+                }
+            """)
+    
+    def _set_placeholder_mode(self):
+        """Set the video area to show initials placeholder."""
+        self.has_video = False
+        self.video_area.setStyleSheet("""
+            QLabel {
+                background-color: #2b2b2b;
+                border-radius: 8px;
+                color: white;
+                font-size: 24px;
+            }
+        """)
+        self.video_area.setText(self.initials)
+        self.video_area.setPixmap(QPixmap())  # Clear any existing pixmap
+    
+    def _set_video_mode(self):
+        """Set the video area to show video frames."""
+        self.has_video = True
+        self.video_area.setStyleSheet("""
+            QLabel {
+                background-color: #000;
+                border-radius: 8px;
+            }
+        """)
+        self.video_area.setText("")  # Clear text when showing video
+    
+    def set_video_frame(self, frame_data: bytes):
+        """Set video frame for this user."""
+        if not frame_data:
+            # No video data, switch to placeholder
+            self._set_placeholder_mode()
+            return
+        
+        try:
+            # Convert JPEG bytes to QPixmap
+            pixmap = QPixmap()
+            if pixmap.loadFromData(frame_data):
+                # Switch to video mode if not already
+                if not self.has_video:
+                    self._set_video_mode()
+                
+                # Scale pixmap to fit the video area while maintaining aspect ratio
+                scaled_pixmap = pixmap.scaled(
+                    self.video_area.size(),
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation
+                )
+                self.video_area.setPixmap(scaled_pixmap)
+            else:
+                # Failed to load image, use placeholder
+                self._set_placeholder_mode()
+                
+        except Exception as e:
+            logger.error(f"Error setting video frame for {self.username}: {e}")
+            self._set_placeholder_mode()
+    
+    def clear_video(self):
+        """Clear video and return to placeholder mode."""
+        self._set_placeholder_mode()
+
 class MainAppWindow(QMainWindow):
     """
     Main application window with full communication features.
@@ -57,6 +194,13 @@ class MainAppWindow(QMainWindow):
         self.audio_active = False
         self.video_active = False
         self.screen_share_active = False
+        
+        # Audio strength monitoring
+        self.current_audio_strength = 0.0
+        self.peak_audio_strength = 0.0
+        self.audio_strength_timer = QTimer()
+        self.audio_strength_timer.timeout.connect(self._update_audio_strength_display)
+        self.audio_strength_timer.start(50)  # Update every 50ms for smooth display
         
         # Error and status management
         self.error_manager = error_manager
@@ -329,7 +473,7 @@ class MainAppWindow(QMainWindow):
         return tab
     
     def create_media_tab(self) -> QWidget:
-        """Create audio/video controls and display tab."""
+        """Create Google Meet-style user grid with speaking indicators."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -355,19 +499,45 @@ class MainAppWindow(QMainWindow):
         
         layout.addWidget(controls_group)
         
-        # Video display area
-        video_label = QLabel("Video Streams")
-        video_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
-        layout.addWidget(video_label)
+        # User grid area (Google Meet style)
+        grid_group = QGroupBox("👥 Participants")
+        grid_layout = QVBoxLayout(grid_group)
         
-        # Video grid (placeholder for video streams)
-        self.video_container = QWidget()
-        self.video_layout = QGridLayout(self.video_container)
-        self.video_container.setStyleSheet("background-color: #000; border: 2px solid #ddd;")
-        layout.addWidget(self.video_container, 1)
+        # Page navigation
+        nav_layout = QHBoxLayout()
+        self.prev_page_btn = QPushButton("◀ Previous")
+        self.prev_page_btn.clicked.connect(self.previous_page)
+        self.prev_page_btn.setEnabled(False)
+        nav_layout.addWidget(self.prev_page_btn)
         
-        # Add placeholder video frames
-        self.add_placeholder_video("Local Preview")
+        self.page_label = QLabel("Page 1 of 1")
+        self.page_label.setAlignment(Qt.AlignCenter)
+        self.page_label.setStyleSheet("font-weight: bold;")
+        nav_layout.addWidget(self.page_label)
+        
+        self.next_page_btn = QPushButton("Next ▶")
+        self.next_page_btn.clicked.connect(self.next_page)
+        self.next_page_btn.setEnabled(False)
+        nav_layout.addWidget(self.next_page_btn)
+        
+        grid_layout.addLayout(nav_layout)
+        
+        # User grid (3x3 layout)
+        self.user_grid_widget = QWidget()
+        self.user_grid_layout = QGridLayout(self.user_grid_widget)
+        self.user_grid_layout.setSpacing(10)
+        
+        # Initialize user management
+        self.user_boxes = {}  # username -> UserBox widget
+        self.user_order = []  # List of usernames in display order
+        self.current_page = 0
+        self.users_per_page = 9  # 3x3 grid
+        
+        # Create empty grid initially
+        self._create_empty_grid()
+        
+        grid_layout.addWidget(self.user_grid_widget, 1)
+        layout.addWidget(grid_group, 1)
         
         return tab
     
@@ -453,7 +623,7 @@ class MainAppWindow(QMainWindow):
     
     def add_user(self, username: str, user_info: dict):
         """
-        Add a user to the user list.
+        Add a user to the user list and grid.
         
         Args:
             username: Username to add
@@ -470,13 +640,16 @@ class MainAppWindow(QMainWindow):
         item.setData(Qt.UserRole, username)
         self.user_list_widget.addItem(item)
         
+        # Add to user grid
+        self.add_user_to_grid(username, user_info)
+        
         # Update the All/None button state
         self.update_select_all_button()
         
-        logger.info(f"Added user '{username}' to user list")
+        logger.info(f"Added user '{username}' to user list and grid")
     
     def remove_user(self, username: str):
-        """Remove a user from the user list."""
+        """Remove a user from the user list and grid."""
         if username in self.connected_users:
             del self.connected_users[username]
         
@@ -486,6 +659,9 @@ class MainAppWindow(QMainWindow):
                 self.user_list_widget.takeItem(i)
                 logger.info(f"Removed user '{username}' from user list")
                 break
+        
+        # Remove from user grid
+        self.remove_user_from_grid(username)
         
         # Update the All/None button state
         self.update_select_all_button()
@@ -794,6 +970,8 @@ class MainAppWindow(QMainWindow):
                 """)
                 self.error_manager.update_component_status('audio', 'active', 'Audio streaming started')
                 self.show_success_notification("Audio Started", "Audio streaming is now active")
+                # Refresh grid to show self when audio starts
+                self._refresh_grid()
                 logger.info("Audio started")
             else:
                 self.stop_audio.emit()
@@ -801,6 +979,8 @@ class MainAppWindow(QMainWindow):
                 self.audio_btn.setText("🎤 Start Audio")
                 self.audio_btn.setStyleSheet("font-size: 14px; font-weight: bold;")
                 self.error_manager.update_component_status('audio', 'inactive', 'Audio streaming stopped')
+                # Refresh grid to hide self when audio stops
+                self._refresh_grid()
                 logger.info("Audio stopped")
         except Exception as e:
             logger.error(f"Error toggling audio: {e}")
@@ -830,6 +1010,8 @@ class MainAppWindow(QMainWindow):
                 """)
                 self.error_manager.update_component_status('video', 'active', 'Video streaming started')
                 self.show_success_notification("Video Started", "Video streaming is now active")
+                # Refresh grid to show self with video
+                self._refresh_grid()
                 logger.info("Video started")
             else:
                 self.stop_video.emit()
@@ -837,6 +1019,9 @@ class MainAppWindow(QMainWindow):
                 self.video_btn.setText("📹 Start Video")
                 self.video_btn.setStyleSheet("font-size: 14px; font-weight: bold;")
                 self.error_manager.update_component_status('video', 'inactive', 'Video streaming stopped')
+                # Clear self video and refresh grid
+                self.set_self_video_active(False)
+                self._refresh_grid()
                 logger.info("Video stopped")
         except Exception as e:
             logger.error(f"Error toggling video: {e}")
@@ -1315,3 +1500,257 @@ class MainAppWindow(QMainWindow):
         if notification in self.active_notifications:
             self.active_notifications.remove(notification)
         notification.deleteLater()
+    # ========================================================================
+    # Audio Strength Monitoring Methods
+    # ========================================================================
+    
+    def set_media_manager(self, media_manager):
+        """
+        Set the media manager reference for audio strength monitoring.
+        
+        Args:
+            media_manager: MediaCaptureManager instance
+        """
+        self.media_manager = media_manager
+        if media_manager:
+            # Set up audio strength callback
+            media_manager.set_audio_strength_callback(self._on_audio_strength_update)
+            logger.info("Audio strength monitoring connected to media manager")
+    
+    def _on_audio_strength_update(self, current_strength: float, peak_strength: float):
+        """
+        Callback for audio strength updates from media manager.
+        
+        Args:
+            current_strength: Current audio strength (0.0 to 1.0)
+            peak_strength: Peak audio strength (0.0 to 1.0)
+        """
+        # Store values for display update
+        self.current_audio_strength = current_strength
+        self.peak_audio_strength = peak_strength
+    
+    def _update_audio_strength_display(self):
+        """Update the user grid based on speaking status."""
+        try:
+            # Check if user is speaking
+            is_speaking = False
+            if hasattr(self, 'media_manager') and self.media_manager:
+                is_speaking = self.media_manager.is_user_speaking()
+            
+            # Update self speaking state in grid
+            if self.username in self.user_boxes:
+                self.user_boxes[self.username].update_speaking_state(is_speaking)
+            
+            # If we start speaking, refresh grid to show self
+            if is_speaking and self.audio_active:
+                self._refresh_grid()
+                
+        except Exception as e:
+            logger.error(f"Error updating audio strength display: {e}")
+    
+    def reset_peak_audio_strength(self):
+        """Reset the peak audio strength measurement."""
+        if hasattr(self, 'media_manager') and self.media_manager:
+            self.media_manager.reset_peak_audio_strength()
+            logger.info("Peak audio strength reset")
+
+    # ========================================================================
+    # Google Meet-Style User Grid Methods
+    # ========================================================================
+    
+    def _create_empty_grid(self):
+        """Create empty 3x3 grid layout."""
+        # Clear existing layout
+        for i in reversed(range(self.user_grid_layout.count())):
+            self.user_grid_layout.itemAt(i).widget().setParent(None)
+        
+        # Create 3x3 empty slots
+        for row in range(3):
+            for col in range(3):
+                empty_slot = QLabel("Empty")
+                empty_slot.setAlignment(Qt.AlignCenter)
+                empty_slot.setFixedSize(180, 135)
+                empty_slot.setStyleSheet("""
+                    QLabel {
+                        border: 2px dashed #ccc;
+                        border-radius: 10px;
+                        color: #999;
+                        font-size: 12px;
+                        background-color: #f9f9f9;
+                    }
+                """)
+                self.user_grid_layout.addWidget(empty_slot, row, col)
+    
+    def add_user_to_grid(self, username: str, user_info: dict = None):
+        """Add a user to the grid system."""
+        if username == self.username:
+            return  # Don't add self to the grid here, handle separately
+        
+        if username not in self.user_boxes:
+            # Create new user box
+            user_box = UserBox(username, is_self=False)
+            self.user_boxes[username] = user_box
+            
+            # Add to user order (new users go to the end)
+            self.user_order.append(username)
+            
+            # Refresh the grid display
+            self._refresh_grid()
+            
+            logger.info(f"Added user '{username}' to grid")
+    
+    def remove_user_from_grid(self, username: str):
+        """Remove a user from the grid system."""
+        if username in self.user_boxes:
+            # Remove from user order
+            if username in self.user_order:
+                self.user_order.remove(username)
+            
+            # Remove widget
+            user_box = self.user_boxes.pop(username)
+            user_box.setParent(None)
+            
+            # Refresh the grid display
+            self._refresh_grid()
+            
+            logger.info(f"Removed user '{username}' from grid")
+    
+    def update_user_speaking_state(self, username: str, is_speaking: bool):
+        """Update speaking state for a user."""
+        if username in self.user_boxes:
+            user_box = self.user_boxes[username]
+            user_box.update_speaking_state(is_speaking)
+            
+            # Move speaking user to front if not on current page
+            if is_speaking and username not in self._get_current_page_users():
+                self._move_user_to_front(username)
+    
+    def _move_user_to_front(self, username: str):
+        """Move a speaking user to the front of the grid."""
+        if username in self.user_order:
+            # Remove from current position
+            self.user_order.remove(username)
+            # Add to front
+            self.user_order.insert(0, username)
+            
+            # Go to first page to show the speaking user
+            self.current_page = 0
+            self._refresh_grid()
+            
+            logger.info(f"Moved speaking user '{username}' to front")
+    
+    def _get_current_page_users(self) -> list:
+        """Get list of users on current page."""
+        start_idx = self.current_page * self.users_per_page
+        end_idx = start_idx + self.users_per_page
+        return self.user_order[start_idx:end_idx]
+    
+    def _refresh_grid(self):
+        """Refresh the grid display with current page users."""
+        # Clear existing layout
+        for i in reversed(range(self.user_grid_layout.count())):
+            widget = self.user_grid_layout.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
+        
+        # Get users for current page
+        current_users = self._get_current_page_users()
+        
+        # Add self to the first position if audio is active
+        if self.audio_active and self.username not in current_users:
+            # Make room for self by removing last user if page is full
+            if len(current_users) >= self.users_per_page:
+                current_users = current_users[:-1]
+            current_users.insert(0, self.username)
+        
+        # Fill grid positions
+        position = 0
+        for row in range(3):
+            for col in range(3):
+                if position < len(current_users):
+                    username = current_users[position]
+                    
+                    # Create or get user box
+                    if username == self.username:
+                        # Create self box if not exists
+                        if self.username not in self.user_boxes:
+                            self.user_boxes[self.username] = UserBox(self.username, is_self=True)
+                        user_box = self.user_boxes[self.username]
+                    else:
+                        user_box = self.user_boxes[username]
+                    
+                    self.user_grid_layout.addWidget(user_box, row, col)
+                    position += 1
+                else:
+                    # Empty slot
+                    empty_slot = QLabel("Empty")
+                    empty_slot.setAlignment(Qt.AlignCenter)
+                    empty_slot.setFixedSize(180, 135)
+                    empty_slot.setStyleSheet("""
+                        QLabel {
+                            border: 2px dashed #ccc;
+                            border-radius: 10px;
+                            color: #999;
+                            font-size: 12px;
+                            background-color: #f9f9f9;
+                        }
+                    """)
+                    self.user_grid_layout.addWidget(empty_slot, row, col)
+        
+        # Update page navigation
+        self._update_page_navigation()
+    
+    def _update_page_navigation(self):
+        """Update page navigation buttons and label."""
+        total_users = len(self.user_order)
+        if self.audio_active:
+            total_users += 1  # Include self
+        
+        total_pages = max(1, (total_users + self.users_per_page - 1) // self.users_per_page)
+        
+        # Update label
+        self.page_label.setText(f"Page {self.current_page + 1} of {total_pages}")
+        
+        # Update button states
+        self.prev_page_btn.setEnabled(self.current_page > 0)
+        self.next_page_btn.setEnabled(self.current_page < total_pages - 1)
+    
+    def previous_page(self):
+        """Go to previous page."""
+        if self.current_page > 0:
+            self.current_page -= 1
+            self._refresh_grid()
+    
+    def next_page(self):
+        """Go to next page."""
+        total_users = len(self.user_order)
+        if self.audio_active:
+            total_users += 1
+        total_pages = max(1, (total_users + self.users_per_page - 1) // self.users_per_page)
+        
+        if self.current_page < total_pages - 1:
+            self.current_page += 1
+            self._refresh_grid()   
+ # ========================================================================
+    # Video Management Methods
+    # ========================================================================
+    
+    def update_user_video_frame(self, username: str, frame_data: bytes):
+        """Update video frame for a specific user."""
+        if username in self.user_boxes:
+            self.user_boxes[username].set_video_frame(frame_data)
+    
+    def clear_user_video(self, username: str):
+        """Clear video for a specific user (return to initials)."""
+        if username in self.user_boxes:
+            self.user_boxes[username].clear_video()
+    
+    def set_self_video_active(self, active: bool):
+        """Set video active state for self."""
+        if self.username in self.user_boxes:
+            if not active:
+                self.user_boxes[self.username].clear_video()
+    
+    def update_video_frame(self, username: str, video_data: bytes):
+        """Handle received video frame (called from app.py)."""
+        self.update_user_video_frame(username, video_data)

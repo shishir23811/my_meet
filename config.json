@@ -1,0 +1,20 @@
+{
+  "network": {
+    "tcp_port": 5555,
+    "udp_port": 5556,
+    "host": "0.0.0.0",
+    "buffer_size": 8192
+  },
+  "media": {
+    "video_width": 640,
+    "video_height": 480,
+    "video_fps": 30,
+    "audio_sample_rate": 44100,
+    "audio_channels": 2
+  },
+  "ui": {
+    "theme": "dark",
+    "remember_me": true,
+    "last_username": "shishir1"
+  }
+}
