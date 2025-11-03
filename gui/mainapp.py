@@ -67,10 +67,12 @@ class UserBox(QWidget):
         self.setMinimumSize(200, 150)  # Minimum size for readability
         
         # Use absolute positioning for Google Meet style layout
+        # The border will be applied to the entire UserBox for speaking indication
         self.setStyleSheet("""
             UserBox {
-                background-color: transparent;
-                border: none;
+                background-color: #2d2d2d;
+                border: 2px solid transparent;
+                border-radius: 8px;
             }
         """)
         
@@ -108,24 +110,23 @@ class UserBox(QWidget):
         """Update the visual state based on speaking status."""
         self.is_speaking = is_speaking
         
+        # Apply green border to the entire UserBox when speaking
         if is_speaking:
-            # Green border around avatar when speaking
-            if hasattr(self, 'video_area') and not self.has_video:
-                current_style = self.video_area.styleSheet()
-                # Add green border to avatar circle
-                updated_style = current_style.replace(
-                    "border-radius:", "border: 4px solid #4CAF50; border-radius:"
-                )
-                self.video_area.setStyleSheet(updated_style)
+            self.setStyleSheet("""
+                UserBox {
+                    background-color: #2d2d2d;
+                    border: 4px solid #4CAF50;
+                    border-radius: 8px;
+                }
+            """)
         else:
-            # Remove border when not speaking
-            if hasattr(self, 'video_area') and not self.has_video:
-                current_style = self.video_area.styleSheet()
-                # Remove border from avatar circle
-                updated_style = current_style.replace(
-                    "border: 4px solid #4CAF50; ", ""
-                )
-                self.video_area.setStyleSheet(updated_style)
+            self.setStyleSheet("""
+                UserBox {
+                    background-color: #2d2d2d;
+                    border: 2px solid transparent;
+                    border-radius: 8px;
+                }
+            """)
     
     def _set_placeholder_mode(self):
         """Set the video area to show avatar circle with initial."""
@@ -135,6 +136,7 @@ class UserBox(QWidget):
         initial = self.username[0].upper() if self.username else "?"
         
         # Initial styling - will be updated by update_size
+        # No border on the avatar circle since border is now on the UserBox
         self.video_area.setStyleSheet(f"""
             QLabel {{
                 background-color: {self.avatar_color};
@@ -154,6 +156,7 @@ class UserBox(QWidget):
         
         if hasattr(self, 'video_area'):
             if not self.has_video:
+                # Avatar mode - show circle in center of the box
                 # For single user, make avatar much larger
                 if width > 400 and height > 300:  # Large single user view
                     circle_size = min(width, height) * 0.25  # Larger for single user
@@ -177,12 +180,11 @@ class UserBox(QWidget):
                 # Get first letter for avatar
                 initial = self.username[0].upper() if self.username else "?"
                 
-                # Update avatar circle styling
-                border_style = "border: 4px solid #4CAF50; " if self.is_speaking else ""
+                # Update avatar circle styling (no border since it's on the UserBox now)
                 self.video_area.setStyleSheet(f"""
                     QLabel {{
                         background-color: {self.avatar_color};
-                        {border_style}border-radius: {int(circle_size // 2)}px;
+                        border-radius: {int(circle_size // 2)}px;
                         color: white;
                         font-size: {int(font_size)}px;
                         font-weight: bold;
@@ -191,8 +193,10 @@ class UserBox(QWidget):
                 """)
                 self.video_area.setText(initial)
             else:
-                # For video mode, use full available space
-                self.video_area.setGeometry(0, 0, width, height)
+                # Video mode - fill the entire box with video
+                # Leave small margin for the border
+                margin = 4
+                self.video_area.setGeometry(margin, margin, width - 2*margin, height - 2*margin)
         
         # Position username label at bottom left
         if hasattr(self, 'name_label'):
@@ -206,10 +210,11 @@ class UserBox(QWidget):
     def _set_video_mode(self):
         """Set the video area to show video frames."""
         self.has_video = True
+        # Video fills the entire area with rounded corners to match the box
         self.video_area.setStyleSheet("""
             QLabel {
                 background-color: #000;
-                border-radius: 8px;
+                border-radius: 4px;
             }
         """)
         self.video_area.setText("")  # Clear text when showing video
@@ -227,7 +232,10 @@ class UserBox(QWidget):
             if pixmap.loadFromData(frame_data):
                 # Switch to video mode if not already
                 if not self.has_video:
+                    logger.info(f"UserBox {self.username} switching to video mode")
                     self._set_video_mode()
+                    # Update size to ensure video area fills the box
+                    self.update_size(self.width(), self.height())
                 
                 # Scale pixmap to fit the video area while maintaining aspect ratio
                 scaled_pixmap = pixmap.scaled(
@@ -236,8 +244,10 @@ class UserBox(QWidget):
                     Qt.SmoothTransformation
                 )
                 self.video_area.setPixmap(scaled_pixmap)
+                logger.debug(f"Video frame set for {self.username}, pixmap size: {scaled_pixmap.size()}")
             else:
                 # Failed to load image, use placeholder
+                logger.warning(f"Failed to load video frame data for {self.username}")
                 self._set_placeholder_mode()
                 
         except Exception as e:
@@ -1797,11 +1807,11 @@ class MainAppWindow(QMainWindow):
                 if widget:
                     widget.setParent(None)
             
-            # Get all users (including self if audio/video is active)
+            # Get all users (include self when media is active)
             all_users = []
             
-            # Add self if media is active
-            if (self.audio_active or self.video_active) and self.username not in self.user_order:
+            # Add self (host) first when they have active media
+            if self.audio_active or self.video_active:
                 all_users.append(self.username)
             
             # Add other users
@@ -1810,8 +1820,8 @@ class MainAppWindow(QMainWindow):
             user_count = len(all_users)
             
             if user_count == 0:
-                # Show welcome message when no users
-                welcome_label = QLabel("🎉 Welcome to LAN Communicator!\n\nStart audio or video to see yourself here.\nOthers will appear as they join.")
+                # Show welcome message when no users and no active media
+                welcome_label = QLabel("🎉 Welcome to LAN Communicator!\n\nClick the video or audio button below to start.\nYou'll see yourself here, and others will appear as they join.")
                 welcome_label.setAlignment(Qt.AlignCenter)
                 welcome_label.setStyleSheet("""
                     QLabel {
@@ -1933,7 +1943,7 @@ class MainAppWindow(QMainWindow):
         """Update page navigation visibility and state."""
         total_users = len(self.user_order)
         if self.audio_active or self.video_active:
-            total_users += 1  # Include self
+            total_users += 1  # Include self when media is active
         
         # For now, disable pagination since we're using dynamic grid
         # In the future, this could be used for very large groups (>16 users)
@@ -2024,6 +2034,12 @@ class MainAppWindow(QMainWindow):
         """Update video frame for a specific user."""
         if username in self.user_boxes:
             self.user_boxes[username].set_video_frame(frame_data)
+        else:
+            logger.warning(f"No user box found for {username}")
+            # Try to create the user box if it doesn't exist
+            if username == self.username and (self.audio_active or self.video_active):
+                logger.info(f"Creating user box for self ({username}) since media is active")
+                self._create_dynamic_grid()
     
     def clear_user_video(self, username: str):
         """Clear video for a specific user (return to initials)."""

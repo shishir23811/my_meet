@@ -778,6 +778,19 @@ class LANCommunicatorApp(QStackedWidget):
                     details=str(e)
                 )
     
+    def update_self_video_frame(self, frame_data: bytes):
+        """Update self video frame in GUI."""
+        logger.debug(f"update_self_video_frame called, frame size: {len(frame_data)}, username: {self.current_username}")
+        if self.main_window:
+            self.main_window.update_user_video_frame(self.current_username, frame_data)
+        else:
+            logger.warning("No main window available for video frame update")
+    
+    def on_user_video_stopped(self, username: str):
+        """Handle when a user stops their video."""
+        if self.main_window:
+            self.main_window.clear_user_video(username)
+    
     @Slot()
     def on_leave_session(self):
         """Handle leave session request."""
@@ -873,13 +886,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-    
-    def update_self_video_frame(self, frame_data: bytes):
-        """Update self video frame in GUI."""
-        if self.main_window:
-            self.main_window.update_user_video_frame(self.current_username, frame_data)
-    
-    def on_user_video_stopped(self, username: str):
-        """Handle when a user stops their video."""
-        if self.main_window:
-            self.main_window.clear_user_video(username)
