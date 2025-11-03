@@ -62,18 +62,22 @@ class UserBox(QWidget):
         self.setup_ui()
     
     def setup_ui(self):
-        """Set up the user box UI."""
+        """Set up the user box UI with Google Meet style."""
         # Dynamic sizing - will be set by the grid layout
         self.setMinimumSize(200, 150)  # Minimum size for readability
         
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(5)
+        # Use absolute positioning for Google Meet style layout
+        self.setStyleSheet("""
+            UserBox {
+                background-color: transparent;
+                border: none;
+            }
+        """)
         
-        # Video area (can show video or initials)
-        self.video_area = QLabel()
+        # Video area (can show video or avatar)
+        self.video_area = QLabel(self)
         self.video_area.setAlignment(Qt.AlignCenter)
-        self.video_area.setScaledContents(True)  # Scale video to fit
+        self.video_area.setScaledContents(True)
         
         # Store initials for fallback
         self.initials = ''.join([name[0].upper() for name in self.username.split()[:2]])
@@ -81,29 +85,23 @@ class UserBox(QWidget):
         # Set initial placeholder style and content
         self._set_placeholder_mode()
         
-        layout.addWidget(self.video_area, 1)
-        
-        # Username label
-        self.name_label = QLabel(self.username)
-        self.name_label.setAlignment(Qt.AlignCenter)
+        # Username label (positioned at bottom left)
+        self.name_label = QLabel(self)
+        display_name = f"{self.username}" if not self.is_self else f"{self.username}"
+        self.name_label.setText(display_name)
         self.name_label.setStyleSheet("""
             QLabel {
-                background-color: rgba(0, 0, 0, 0.7);
+                background-color: rgba(0, 0, 0, 0.6);
                 color: white;
-                padding: 4px 8px;
-                border-radius: 4px;
-                font-weight: bold;
-                font-size: 11px;
+                padding: 8px 12px;
+                border-radius: 6px;
+                font-weight: 500;
+                font-size: 14px;
             }
         """)
+        self.name_label.adjustSize()
         
-        # Add "(You)" indicator for self
-        if self.is_self:
-            self.name_label.setText(f"{self.username} (You)")
-        
-        layout.addWidget(self.name_label)
-        
-        # Set initial border style
+        # Set initial speaking state
         self.update_speaking_state(False)
     
     def update_speaking_state(self, is_speaking: bool):
@@ -111,23 +109,23 @@ class UserBox(QWidget):
         self.is_speaking = is_speaking
         
         if is_speaking:
-            # Green border when speaking
-            self.setStyleSheet("""
-                UserBox {
-                    border: 3px solid #4CAF50;
-                    border-radius: 10px;
-                    background-color: #f5f5f5;
-                }
-            """)
+            # Green border around avatar when speaking
+            if hasattr(self, 'video_area') and not self.has_video:
+                current_style = self.video_area.styleSheet()
+                # Add green border to avatar circle
+                updated_style = current_style.replace(
+                    "border-radius:", "border: 4px solid #4CAF50; border-radius:"
+                )
+                self.video_area.setStyleSheet(updated_style)
         else:
-            # Normal border when not speaking
-            self.setStyleSheet("""
-                UserBox {
-                    border: 2px solid #ddd;
-                    border-radius: 10px;
-                    background-color: #f5f5f5;
-                }
-            """)
+            # Remove border when not speaking
+            if hasattr(self, 'video_area') and not self.has_video:
+                current_style = self.video_area.styleSheet()
+                # Remove border from avatar circle
+                updated_style = current_style.replace(
+                    "border: 4px solid #4CAF50; ", ""
+                )
+                self.video_area.setStyleSheet(updated_style)
     
     def _set_placeholder_mode(self):
         """Set the video area to show avatar circle with initial."""
@@ -136,14 +134,13 @@ class UserBox(QWidget):
         # Get first letter of username for avatar
         initial = self.username[0].upper() if self.username else "?"
         
-        # Create avatar circle with colored background and white text
-        # The circle will be created using border-radius to make it perfectly round
+        # Initial styling - will be updated by update_size
         self.video_area.setStyleSheet(f"""
             QLabel {{
                 background-color: {self.avatar_color};
-                border-radius: 50px;  /* Will be adjusted dynamically */
+                border-radius: 50px;
                 color: white;
-                font-size: 24px;  /* Will be adjusted dynamically */
+                font-size: 24px;
                 font-weight: bold;
                 text-align: center;
             }}
@@ -152,36 +149,40 @@ class UserBox(QWidget):
         self.video_area.setPixmap(QPixmap())  # Clear any existing pixmap
     
     def update_size(self, width: int, height: int):
-        """Update the size of the user box and adjust avatar circle size accordingly."""
+        """Update the size and position elements for Google Meet style."""
         self.setFixedSize(width, height)
         
-        # Adjust avatar circle size and font based on box size
         if hasattr(self, 'video_area'):
-            # Calculate video area size (leave space for name label)
-            video_width = width - 20  # 10px margin on each side
-            video_height = height - 50  # Leave space for name label
-            
-            # For avatar mode, create a perfect circle
             if not self.has_video:
-                # Calculate circle size (60% of available space, but keep it square)
-                circle_size = min(video_width, video_height) * 0.6
-                circle_size = max(40, min(circle_size, 120))  # Clamp between 40 and 120
+                # For single user, make avatar much larger
+                if width > 400 and height > 300:  # Large single user view
+                    circle_size = min(width, height) * 0.25  # Larger for single user
+                    circle_size = max(80, min(circle_size, 200))
+                else:
+                    # For grid view, smaller avatars
+                    circle_size = min(width, height) * 0.4
+                    circle_size = max(40, min(circle_size, 100))
                 
                 # Calculate font size based on circle size
-                font_size = circle_size // 3
-                font_size = max(12, min(font_size, 36))  # Clamp between 12 and 36
+                font_size = circle_size // 4
+                font_size = max(16, min(font_size, 48))
                 
-                # Set fixed size for the avatar circle
-                self.video_area.setFixedSize(int(circle_size), int(circle_size))
+                # Center the avatar circle
+                avatar_x = (width - circle_size) // 2
+                avatar_y = (height - circle_size) // 2
+                
+                self.video_area.setGeometry(int(avatar_x), int(avatar_y), 
+                                          int(circle_size), int(circle_size))
                 
                 # Get first letter for avatar
                 initial = self.username[0].upper() if self.username else "?"
                 
                 # Update avatar circle styling
+                border_style = "border: 4px solid #4CAF50; " if self.is_speaking else ""
                 self.video_area.setStyleSheet(f"""
                     QLabel {{
                         background-color: {self.avatar_color};
-                        border-radius: {int(circle_size // 2)}px;
+                        {border_style}border-radius: {int(circle_size // 2)}px;
                         color: white;
                         font-size: {int(font_size)}px;
                         font-weight: bold;
@@ -191,7 +192,16 @@ class UserBox(QWidget):
                 self.video_area.setText(initial)
             else:
                 # For video mode, use full available space
-                self.video_area.setFixedSize(video_width, video_height)
+                self.video_area.setGeometry(0, 0, width, height)
+        
+        # Position username label at bottom left
+        if hasattr(self, 'name_label'):
+            self.name_label.adjustSize()
+            label_width = self.name_label.width()
+            label_height = self.name_label.height()
+            
+            # Position at bottom left with some margin
+            self.name_label.move(20, height - label_height - 20)
     
     def _set_video_mode(self):
         """Set the video area to show video frames."""
@@ -203,9 +213,6 @@ class UserBox(QWidget):
             }
         """)
         self.video_area.setText("")  # Clear text when showing video
-        
-        # Resize to full video area when switching to video mode
-        # This will be properly sized by the next update_size call
     
     def set_video_frame(self, frame_data: bytes):
         """Set video frame for this user."""
@@ -565,61 +572,32 @@ class MainAppWindow(QMainWindow):
         return tab
     
     def create_media_tab(self) -> QWidget:
-        """Create Google Meet-style user grid with speaking indicators."""
+        """Create Google Meet-style user grid with dark background."""
         tab = QWidget()
+        
+        # Set dark background like Google Meet
+        tab.setStyleSheet("""
+            QWidget {
+                background-color: #202124;
+                color: white;
+            }
+        """)
+        
         layout = QVBoxLayout(tab)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(15)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         
-        # Controls
-        controls_group = QGroupBox("Media Controls")
-        controls_layout = QGridLayout(controls_group)
-        
-        # Audio controls
-        self.audio_btn = QPushButton("🎤 Start Audio")
-        self.audio_btn.setMinimumHeight(50)
-        self.audio_btn.clicked.connect(self.toggle_audio)
-        self.audio_btn.setStyleSheet("font-size: 14px; font-weight: bold;")
-        controls_layout.addWidget(self.audio_btn, 0, 0)
-        
-        # Video controls
-        self.video_btn = QPushButton("📹 Start Video")
-        self.video_btn.setMinimumHeight(50)
-        self.video_btn.clicked.connect(self.toggle_video)
-        self.video_btn.setStyleSheet("font-size: 14px; font-weight: bold;")
-        controls_layout.addWidget(self.video_btn, 0, 1)
-        
-        layout.addWidget(controls_group)
-        
-        # User grid area (Google Meet style)
-        grid_group = QGroupBox("👥 Participants")
-        grid_layout = QVBoxLayout(grid_group)
-        
-        # Page navigation (hidden for dynamic grid)
-        nav_layout = QHBoxLayout()
-        self.prev_page_btn = QPushButton("◀ Previous")
-        self.prev_page_btn.clicked.connect(self.previous_page)
-        self.prev_page_btn.setVisible(False)  # Hidden for dynamic grid
-        nav_layout.addWidget(self.prev_page_btn)
-        
-        self.page_label = QLabel("Dynamic Grid Active")
-        self.page_label.setAlignment(Qt.AlignCenter)
-        self.page_label.setStyleSheet("font-weight: bold; color: #666;")
-        self.page_label.setVisible(False)  # Hidden for dynamic grid
-        nav_layout.addWidget(self.page_label)
-        
-        self.next_page_btn = QPushButton("Next ▶")
-        self.next_page_btn.clicked.connect(self.next_page)
-        self.next_page_btn.setVisible(False)  # Hidden for dynamic grid
-        nav_layout.addWidget(self.next_page_btn)
-        
-        # Don't add navigation to layout since it's hidden
-        
-        # Dynamic user grid
+        # Main video area (full screen for single user, grid for multiple)
         self.user_grid_widget = QWidget()
+        self.user_grid_widget.setStyleSheet("""
+            QWidget {
+                background-color: #202124;
+                border: none;
+            }
+        """)
         self.user_grid_layout = QGridLayout(self.user_grid_widget)
-        self.user_grid_layout.setSpacing(10)
-        self.user_grid_layout.setContentsMargins(10, 10, 10, 10)
+        self.user_grid_layout.setSpacing(8)
+        self.user_grid_layout.setContentsMargins(20, 20, 20, 20)
         
         # Initialize user management
         self.user_boxes = {}  # username -> UserBox widget
@@ -630,10 +608,127 @@ class MainAppWindow(QMainWindow):
         # Create initial empty state
         self._create_dynamic_grid()
         
-        grid_layout.addWidget(self.user_grid_widget, 1)
-        layout.addWidget(grid_group, 1)
+        layout.addWidget(self.user_grid_widget, 1)
+        
+        # Bottom control bar (Google Meet style)
+        self.create_bottom_controls(layout)
         
         return tab
+    
+    def create_bottom_controls(self, parent_layout):
+        """Create bottom control bar like Google Meet."""
+        controls_container = QWidget()
+        controls_container.setFixedHeight(80)
+        controls_container.setStyleSheet("""
+            QWidget {
+                background-color: #1a1a1a;
+                border-top: 1px solid #333;
+            }
+        """)
+        
+        controls_layout = QHBoxLayout(controls_container)
+        controls_layout.setContentsMargins(20, 15, 20, 15)
+        controls_layout.setSpacing(15)
+        
+        # Left side - session info (optional)
+        left_spacer = QWidget()
+        controls_layout.addWidget(left_spacer, 1)
+        
+        # Center - main controls
+        center_layout = QHBoxLayout()
+        center_layout.setSpacing(15)
+        
+        # Audio button
+        self.audio_btn = QPushButton("🎤")
+        self.audio_btn.setFixedSize(50, 50)
+        self.audio_btn.clicked.connect(self.toggle_audio)
+        self.audio_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3c4043;
+                border: none;
+                border-radius: 25px;
+                font-size: 20px;
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: #5f6368;
+            }
+            QPushButton:pressed {
+                background-color: #2d2d2d;
+            }
+        """)
+        center_layout.addWidget(self.audio_btn)
+        
+        # Video button
+        self.video_btn = QPushButton("📹")
+        self.video_btn.setFixedSize(50, 50)
+        self.video_btn.clicked.connect(self.toggle_video)
+        self.video_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3c4043;
+                border: none;
+                border-radius: 25px;
+                font-size: 20px;
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: #5f6368;
+            }
+            QPushButton:pressed {
+                background-color: #2d2d2d;
+            }
+        """)
+        center_layout.addWidget(self.video_btn)
+        
+        # Screen share button
+        self.screen_share_btn = QPushButton("🖥️")
+        self.screen_share_btn.setFixedSize(50, 50)
+        self.screen_share_btn.clicked.connect(self.toggle_screen_share)
+        self.screen_share_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3c4043;
+                border: none;
+                border-radius: 25px;
+                font-size: 18px;
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: #5f6368;
+            }
+            QPushButton:pressed {
+                background-color: #2d2d2d;
+            }
+        """)
+        center_layout.addWidget(self.screen_share_btn)
+        
+        # Leave button
+        leave_btn = QPushButton("📞")
+        leave_btn.setFixedSize(50, 50)
+        leave_btn.clicked.connect(self.handle_leave_session)
+        leave_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #ea4335;
+                border: none;
+                border-radius: 25px;
+                font-size: 20px;
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: #d33b2c;
+            }
+            QPushButton:pressed {
+                background-color: #b52d20;
+            }
+        """)
+        center_layout.addWidget(leave_btn)
+        
+        controls_layout.addLayout(center_layout)
+        
+        # Right side spacer
+        right_spacer = QWidget()
+        controls_layout.addWidget(right_spacer, 1)
+        
+        parent_layout.addWidget(controls_container)
     
     def create_screen_tab(self) -> QWidget:
         """Create screen sharing tab."""

@@ -48,9 +48,9 @@ class AudioCapture:
         self.peak_strength = 0.0   # Peak strength in current session
         self.strength_history = deque(maxlen=50)  # Last 50 measurements (1 second at 20ms frames)
         self.strength_callback: Optional[Callable[[float, float], None]] = None  # Callback for strength updates
-        self.silence_threshold = 0.005  # Below this is considered silence (more sensitive)
-        self.speaking_threshold = 0.02  # Above this is considered speaking (more sensitive)
-        self.loud_threshold = 0.15     # Above this is considered loud speaking (more sensitive)
+        self.silence_threshold = 0.0001  # Below this is considered silence (very sensitive)
+        self.speaking_threshold = 0.001  # Above this is considered speaking (very sensitive)
+        self.loud_threshold = 0.01     # Above this is considered loud speaking (very sensitive)
         self.strength_smoothing = 0.3   # Less smoothing for more responsive detection
         
         # Try to import sounddevice
