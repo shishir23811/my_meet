@@ -28,14 +28,21 @@ The LAN Communicator now supports **firewall-free operation** using high-numbere
 2. Login and click "Host a Session"
 3. Generate Session ID
 4. Click "Start Hosting"
-5. **Share the complete session info** (includes ports if needed)
+5. **Copy Session Info** (includes actual ports used)
+6. **Share the complete session info** with participants
 
 #### **Join a Session:**
 1. Run `python app.py`
 2. Login and click "Join a Session"
-3. Enter Session ID and Server IP
-4. **Leave port fields empty** (uses defaults)
+3. **Click "📋 Paste Session Info from Clipboard"** (recommended)
+4. **Or manually enter**: Session ID, Server IP, and **both port numbers**
 5. Click "Join Session"
+
+#### **⚠️ CRITICAL: Port Numbers Must Match**
+- Host may use different ports than defaults (54321, 54322)
+- **Always use the "Copy Session Info" button** on host side
+- **Always use the "Paste Session Info" button** on participant side
+- **Manual entry requires ALL fields** including both port numbers
 
 ### 🔧 **When to Use Custom Ports**
 
@@ -109,6 +116,14 @@ No action needed - just try again
 1. Both computers must be on same network
 2. Try higher port numbers (55000+)
 3. Check router settings for device isolation
+```
+
+#### **"Port Mismatch" Error**
+```
+1. Host is using different ports than participant expects
+2. SOLUTION: Use "Copy Session Info" → "Paste Session Info" buttons
+3. Verify TCP and UDP port numbers match exactly
+4. Don't leave port fields empty unless host shows default ports
 ```
 
 ### 📱 **Cross-Platform Compatibility**

@@ -1,7 +1,7 @@
 {
   "network": {
-    "tcp_port": 5555,
-    "udp_port": 5556,
+    "tcp_port": 54321,
+    "udp_port": 54322,
     "host": "0.0.0.0",
     "buffer_size": 8192
   },

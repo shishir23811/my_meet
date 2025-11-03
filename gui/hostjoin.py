@@ -171,6 +171,22 @@ class HostJoinWindow(QWidget):
         """)
         layout.addWidget(self.server_ip_display)
         
+        # Port display (will be updated when server starts)
+        layout.addWidget(QLabel("Server Ports:"))
+        self.port_display = QLineEdit()
+        self.port_display.setText(f"TCP: {DEFAULT_TCP_PORT}, UDP: {DEFAULT_UDP_PORT} (default)")
+        self.port_display.setReadOnly(True)
+        self.port_display.setMinimumHeight(40)
+        self.port_display.setStyleSheet("""
+            QLineEdit {
+                font-size: 14px;
+                font-weight: bold;
+                text-align: center;
+                background-color: #e8f4f8;
+            }
+        """)
+        layout.addWidget(self.port_display)
+        
         # Generate button
         generate_btn = QPushButton("Generate Session ID")
         generate_btn.setMinimumHeight(40)
@@ -284,7 +300,7 @@ class HostJoinWindow(QWidget):
         # TCP Port
         port_layout.addWidget(QLabel("TCP Port:"))
         self.join_tcp_port = QLineEdit()
-        self.join_tcp_port.setPlaceholderText("54321 (default)")
+        self.join_tcp_port.setPlaceholderText("From session info")
         self.join_tcp_port.setMaxLength(5)
         self.join_tcp_port.setMinimumHeight(40)
         port_layout.addWidget(self.join_tcp_port)
@@ -292,7 +308,7 @@ class HostJoinWindow(QWidget):
         # UDP Port
         port_layout.addWidget(QLabel("UDP Port:"))
         self.join_udp_port = QLineEdit()
-        self.join_udp_port.setPlaceholderText("54322 (default)")
+        self.join_udp_port.setPlaceholderText("From session info")
         self.join_udp_port.setMaxLength(5)
         self.join_udp_port.setMinimumHeight(40)
         port_layout.addWidget(self.join_udp_port)
@@ -300,10 +316,28 @@ class HostJoinWindow(QWidget):
         layout.addLayout(port_layout)
         
         # Note about ports and localhost
-        note = QLabel("Tip: Leave ports empty to use defaults. Use '127.0.0.1' for same-machine testing.")
-        note.setStyleSheet("color: gray; font-size: 10px;")
+        note = QLabel("⚠️ IMPORTANT: Enter the TCP and UDP ports from the session info shared by the host.\nLeave empty only if host is using default ports (54321, 54322).")
+        note.setStyleSheet("color: #d63031; font-size: 11px; font-weight: bold;")
         note.setWordWrap(True)
         layout.addWidget(note)
+        
+        # Paste session info button
+        paste_btn = QPushButton("📋 Paste Session Info from Clipboard")
+        paste_btn.setMinimumHeight(35)
+        paste_btn.clicked.connect(self.paste_session_info)
+        paste_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0984e3;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #74b9ff;
+            }
+        """)
+        layout.addWidget(paste_btn)
         
         layout.addSpacing(20)
         
@@ -383,8 +417,11 @@ class HostJoinWindow(QWidget):
         # Create formatted session info with port information
         port_info = ""
         if hasattr(self, 'actual_tcp_port') and hasattr(self, 'actual_udp_port'):
-            if self.actual_tcp_port != 54321 or self.actual_udp_port != 54322:  # Show ports if non-default
-                port_info = f"\nTCP Port: {self.actual_tcp_port}\nUDP Port: {self.actual_udp_port}"
+            # Always show actual ports used by the server
+            port_info = f"\nTCP Port: {self.actual_tcp_port}\nUDP Port: {self.actual_udp_port}"
+        else:
+            # Fallback to default ports if server hasn't started yet
+            port_info = f"\nTCP Port: {DEFAULT_TCP_PORT}\nUDP Port: {DEFAULT_UDP_PORT}"
         
         session_info = f"Session ID: {self.session_id}\nServer Address: {self.server_ip}{port_info}"
         
@@ -456,10 +493,107 @@ class HostJoinWindow(QWidget):
         # Use new signal with port information
         self.join_session_with_ports.emit(session_id, server_address, self.username, tcp_port, udp_port)
     
+    def paste_session_info(self):
+        """Parse and fill session information from clipboard."""
+        try:
+            from PySide6.QtGui import QGuiApplication
+            clipboard = QGuiApplication.clipboard()
+            clipboard_text = clipboard.text().strip()
+            
+            if not clipboard_text:
+                QMessageBox.warning(self, "Empty Clipboard", 
+                                  "Clipboard is empty. Please copy session info from the host first.")
+                return
+            
+            # Parse session info
+            session_id = None
+            server_address = None
+            tcp_port = None
+            udp_port = None
+            
+            lines = clipboard_text.split('\n')
+            for line in lines:
+                line = line.strip()
+                if line.startswith('Session ID:'):
+                    session_id = line.split(':', 1)[1].strip()
+                elif line.startswith('Server Address:'):
+                    server_address = line.split(':', 1)[1].strip()
+                elif line.startswith('TCP Port:'):
+                    try:
+                        tcp_port = int(line.split(':', 1)[1].strip())
+                    except ValueError:
+                        pass
+                elif line.startswith('UDP Port:'):
+                    try:
+                        udp_port = int(line.split(':', 1)[1].strip())
+                    except ValueError:
+                        pass
+            
+            # Fill the form fields
+            filled_fields = []
+            if session_id:
+                self.join_session_id.setText(session_id.upper())
+                filled_fields.append("Session ID")
+            
+            if server_address:
+                self.join_server_address.setText(server_address)
+                filled_fields.append("Server Address")
+            
+            if tcp_port:
+                self.join_tcp_port.setText(str(tcp_port))
+                filled_fields.append("TCP Port")
+            
+            if udp_port:
+                self.join_udp_port.setText(str(udp_port))
+                filled_fields.append("UDP Port")
+            
+            if filled_fields:
+                QMessageBox.information(self, "Session Info Parsed", 
+                                      f"Successfully filled: {', '.join(filled_fields)}\n\n"
+                                      f"Please verify the information and click 'Join Session'.")
+                logger.info(f"Parsed session info from clipboard: {filled_fields}")
+            else:
+                QMessageBox.warning(self, "Invalid Format", 
+                                  "Could not parse session information from clipboard.\n\n"
+                                  "Expected format:\n"
+                                  "Session ID: XXXXXXXX\n"
+                                  "Server Address: X.X.X.X\n"
+                                  "TCP Port: XXXXX\n"
+                                  "UDP Port: XXXXX")
+                
+        except Exception as e:
+            logger.error(f"Error parsing session info: {e}")
+            QMessageBox.critical(self, "Parse Error", 
+                               f"Error parsing session information: {e}")
+    
     def update_server_ports(self, tcp_port: int, udp_port: int):
         """Update the actual server ports used (for session sharing)."""
         self.actual_tcp_port = tcp_port
         self.actual_udp_port = udp_port
+        
+        # Update the visual port display
+        if hasattr(self, 'port_display'):
+            if tcp_port == DEFAULT_TCP_PORT and udp_port == DEFAULT_UDP_PORT:
+                self.port_display.setText(f"TCP: {tcp_port}, UDP: {udp_port} (default)")
+                self.port_display.setStyleSheet("""
+                    QLineEdit {
+                        font-size: 14px;
+                        font-weight: bold;
+                        text-align: center;
+                        background-color: #e8f8e8;
+                    }
+                """)
+            else:
+                self.port_display.setText(f"TCP: {tcp_port}, UDP: {udp_port} (auto-selected)")
+                self.port_display.setStyleSheet("""
+                    QLineEdit {
+                        font-size: 14px;
+                        font-weight: bold;
+                        text-align: center;
+                        background-color: #fff8e8;
+                    }
+                """)
+        
         logger.info(f"Server ports updated: TCP {tcp_port}, UDP {udp_port}")
     
     def handle_go_back(self):

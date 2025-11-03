@@ -17,11 +17,40 @@ from utils.error_manager import error_manager, ErrorCategory, ErrorSeverity
 from gui.status_widgets import EnhancedStatusBar, NotificationWidget
 from datetime import datetime
 import os
+import hashlib
 
 logger = setup_logger(__name__)
 
+def generate_avatar_color(username: str) -> str:
+    """Generate a consistent color for a username using hash."""
+    # Predefined set of pleasant colors for avatars
+    colors = [
+        "#FF6B6B",  # Red
+        "#4ECDC4",  # Teal
+        "#45B7D1",  # Blue
+        "#96CEB4",  # Green
+        "#FFEAA7",  # Yellow
+        "#DDA0DD",  # Plum
+        "#98D8C8",  # Mint
+        "#F7DC6F",  # Light Yellow
+        "#BB8FCE",  # Light Purple
+        "#85C1E9",  # Light Blue
+        "#F8C471",  # Orange
+        "#82E0AA",  # Light Green
+        "#F1948A",  # Light Red
+        "#85929E",  # Gray Blue
+        "#D7BDE2",  # Lavender
+    ]
+    
+    # Use hash of username to get consistent color
+    hash_object = hashlib.md5(username.encode())
+    hash_hex = hash_object.hexdigest()
+    color_index = int(hash_hex, 16) % len(colors)
+    
+    return colors[color_index]
+
 class UserBox(QWidget):
-    """Individual user box widget for Google Meet-style grid."""
+    """Individual user box widget for dynamic responsive grid."""
     
     def __init__(self, username: str, is_self: bool = False):
         super().__init__()
@@ -29,11 +58,13 @@ class UserBox(QWidget):
         self.is_self = is_self
         self.is_speaking = False
         self.has_video = False
+        self.avatar_color = generate_avatar_color(username)
         self.setup_ui()
     
     def setup_ui(self):
         """Set up the user box UI."""
-        self.setFixedSize(180, 135)  # Fixed size for consistent grid
+        # Dynamic sizing - will be set by the grid layout
+        self.setMinimumSize(200, 150)  # Minimum size for readability
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
@@ -85,7 +116,7 @@ class UserBox(QWidget):
                 UserBox {
                     border: 3px solid #4CAF50;
                     border-radius: 10px;
-                    background-color: rgba(76, 175, 80, 0.1);
+                    background-color: #f5f5f5;
                 }
             """)
         else:
@@ -94,23 +125,73 @@ class UserBox(QWidget):
                 UserBox {
                     border: 2px solid #ddd;
                     border-radius: 10px;
-                    background-color: white;
+                    background-color: #f5f5f5;
                 }
             """)
     
     def _set_placeholder_mode(self):
-        """Set the video area to show initials placeholder."""
+        """Set the video area to show avatar circle with initial."""
         self.has_video = False
-        self.video_area.setStyleSheet("""
-            QLabel {
-                background-color: #2b2b2b;
-                border-radius: 8px;
+        
+        # Get first letter of username for avatar
+        initial = self.username[0].upper() if self.username else "?"
+        
+        # Create avatar circle with colored background and white text
+        # The circle will be created using border-radius to make it perfectly round
+        self.video_area.setStyleSheet(f"""
+            QLabel {{
+                background-color: {self.avatar_color};
+                border-radius: 50px;  /* Will be adjusted dynamically */
                 color: white;
-                font-size: 24px;
-            }
+                font-size: 24px;  /* Will be adjusted dynamically */
+                font-weight: bold;
+                text-align: center;
+            }}
         """)
-        self.video_area.setText(self.initials)
+        self.video_area.setText(initial)
         self.video_area.setPixmap(QPixmap())  # Clear any existing pixmap
+    
+    def update_size(self, width: int, height: int):
+        """Update the size of the user box and adjust avatar circle size accordingly."""
+        self.setFixedSize(width, height)
+        
+        # Adjust avatar circle size and font based on box size
+        if hasattr(self, 'video_area'):
+            # Calculate video area size (leave space for name label)
+            video_width = width - 20  # 10px margin on each side
+            video_height = height - 50  # Leave space for name label
+            
+            # For avatar mode, create a perfect circle
+            if not self.has_video:
+                # Calculate circle size (60% of available space, but keep it square)
+                circle_size = min(video_width, video_height) * 0.6
+                circle_size = max(40, min(circle_size, 120))  # Clamp between 40 and 120
+                
+                # Calculate font size based on circle size
+                font_size = circle_size // 3
+                font_size = max(12, min(font_size, 36))  # Clamp between 12 and 36
+                
+                # Set fixed size for the avatar circle
+                self.video_area.setFixedSize(int(circle_size), int(circle_size))
+                
+                # Get first letter for avatar
+                initial = self.username[0].upper() if self.username else "?"
+                
+                # Update avatar circle styling
+                self.video_area.setStyleSheet(f"""
+                    QLabel {{
+                        background-color: {self.avatar_color};
+                        border-radius: {int(circle_size // 2)}px;
+                        color: white;
+                        font-size: {int(font_size)}px;
+                        font-weight: bold;
+                        text-align: center;
+                    }}
+                """)
+                self.video_area.setText(initial)
+            else:
+                # For video mode, use full available space
+                self.video_area.setFixedSize(video_width, video_height)
     
     def _set_video_mode(self):
         """Set the video area to show video frames."""
@@ -122,6 +203,9 @@ class UserBox(QWidget):
             }
         """)
         self.video_area.setText("")  # Clear text when showing video
+        
+        # Resize to full video area when switching to video mode
+        # This will be properly sized by the next update_size call
     
     def set_video_frame(self, frame_data: bytes):
         """Set video frame for this user."""
@@ -214,6 +298,14 @@ class MainAppWindow(QMainWindow):
         self.setup_ui()
         self._setup_error_handling()
         logger.info(f"MainAppWindow initialized for user '{username}' in session '{session_id}'")
+    
+    def resizeEvent(self, event):
+        """Handle window resize events to update grid layout."""
+        super().resizeEvent(event)
+        
+        # Recreate grid with new dimensions after a short delay
+        if hasattr(self, 'user_grid_layout'):
+            QTimer.singleShot(100, self._create_dynamic_grid)  # Small delay to avoid excessive updates
     
     def setup_ui(self):
         """Set up the main user interface."""
@@ -503,38 +595,40 @@ class MainAppWindow(QMainWindow):
         grid_group = QGroupBox("👥 Participants")
         grid_layout = QVBoxLayout(grid_group)
         
-        # Page navigation
+        # Page navigation (hidden for dynamic grid)
         nav_layout = QHBoxLayout()
         self.prev_page_btn = QPushButton("◀ Previous")
         self.prev_page_btn.clicked.connect(self.previous_page)
-        self.prev_page_btn.setEnabled(False)
+        self.prev_page_btn.setVisible(False)  # Hidden for dynamic grid
         nav_layout.addWidget(self.prev_page_btn)
         
-        self.page_label = QLabel("Page 1 of 1")
+        self.page_label = QLabel("Dynamic Grid Active")
         self.page_label.setAlignment(Qt.AlignCenter)
-        self.page_label.setStyleSheet("font-weight: bold;")
+        self.page_label.setStyleSheet("font-weight: bold; color: #666;")
+        self.page_label.setVisible(False)  # Hidden for dynamic grid
         nav_layout.addWidget(self.page_label)
         
         self.next_page_btn = QPushButton("Next ▶")
         self.next_page_btn.clicked.connect(self.next_page)
-        self.next_page_btn.setEnabled(False)
+        self.next_page_btn.setVisible(False)  # Hidden for dynamic grid
         nav_layout.addWidget(self.next_page_btn)
         
-        grid_layout.addLayout(nav_layout)
+        # Don't add navigation to layout since it's hidden
         
-        # User grid (3x3 layout)
+        # Dynamic user grid
         self.user_grid_widget = QWidget()
         self.user_grid_layout = QGridLayout(self.user_grid_widget)
         self.user_grid_layout.setSpacing(10)
+        self.user_grid_layout.setContentsMargins(10, 10, 10, 10)
         
         # Initialize user management
         self.user_boxes = {}  # username -> UserBox widget
         self.user_order = []  # List of usernames in display order
         self.current_page = 0
-        self.users_per_page = 9  # 3x3 grid
+        self.users_per_page = 9  # Will be dynamic based on user count
         
-        # Create empty grid initially
-        self._create_empty_grid()
+        # Create initial empty state
+        self._create_dynamic_grid()
         
         grid_layout.addWidget(self.user_grid_widget, 1)
         layout.addWidget(grid_group, 1)
@@ -971,7 +1065,7 @@ class MainAppWindow(QMainWindow):
                 self.error_manager.update_component_status('audio', 'active', 'Audio streaming started')
                 self.show_success_notification("Audio Started", "Audio streaming is now active")
                 # Refresh grid to show self when audio starts
-                self._refresh_grid()
+                self._create_dynamic_grid()
                 logger.info("Audio started")
             else:
                 self.stop_audio.emit()
@@ -980,7 +1074,7 @@ class MainAppWindow(QMainWindow):
                 self.audio_btn.setStyleSheet("font-size: 14px; font-weight: bold;")
                 self.error_manager.update_component_status('audio', 'inactive', 'Audio streaming stopped')
                 # Refresh grid to hide self when audio stops
-                self._refresh_grid()
+                self._create_dynamic_grid()
                 logger.info("Audio stopped")
         except Exception as e:
             logger.error(f"Error toggling audio: {e}")
@@ -1011,7 +1105,7 @@ class MainAppWindow(QMainWindow):
                 self.error_manager.update_component_status('video', 'active', 'Video streaming started')
                 self.show_success_notification("Video Started", "Video streaming is now active")
                 # Refresh grid to show self with video
-                self._refresh_grid()
+                self._create_dynamic_grid()
                 logger.info("Video started")
             else:
                 self.stop_video.emit()
@@ -1021,7 +1115,7 @@ class MainAppWindow(QMainWindow):
                 self.error_manager.update_component_status('video', 'inactive', 'Video streaming stopped')
                 # Clear self video and refresh grid
                 self.set_self_video_active(False)
-                self._refresh_grid()
+                self._create_dynamic_grid()
                 logger.info("Video stopped")
         except Exception as e:
             logger.error(f"Error toggling video: {e}")
@@ -1558,62 +1652,164 @@ class MainAppWindow(QMainWindow):
     # Google Meet-Style User Grid Methods
     # ========================================================================
     
-    def _create_empty_grid(self):
-        """Create empty 3x3 grid layout."""
+    def _calculate_optimal_grid(self, user_count: int) -> tuple:
+        """Calculate optimal grid dimensions based on user count."""
+        if user_count == 0:
+            return (1, 1)
+        elif user_count == 1:
+            return (1, 1)  # Single user takes full space
+        elif user_count == 2:
+            return (1, 2)  # Two users side by side
+        elif user_count <= 4:
+            return (2, 2)  # 2x2 grid for 3-4 users
+        elif user_count <= 6:
+            return (2, 3)  # 2x3 grid for 5-6 users
+        elif user_count <= 9:
+            return (3, 3)  # 3x3 grid for 7-9 users
+        elif user_count <= 12:
+            return (3, 4)  # 3x4 grid for 10-12 users
+        else:
+            return (4, 4)  # 4x4 grid for more users
+    
+    def _create_dynamic_grid(self):
+        """Create dynamic grid layout based on current user count."""
         # Clear existing layout
         for i in reversed(range(self.user_grid_layout.count())):
-            self.user_grid_layout.itemAt(i).widget().setParent(None)
+            widget = self.user_grid_layout.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
         
-        # Create 3x3 empty slots
-        for row in range(3):
-            for col in range(3):
-                empty_slot = QLabel("Empty")
-                empty_slot.setAlignment(Qt.AlignCenter)
-                empty_slot.setFixedSize(180, 135)
-                empty_slot.setStyleSheet("""
-                    QLabel {
-                        border: 2px dashed #ccc;
-                        border-radius: 10px;
-                        color: #999;
-                        font-size: 12px;
-                        background-color: #f9f9f9;
-                    }
-                """)
-                self.user_grid_layout.addWidget(empty_slot, row, col)
+        # Get all users (including self if audio/video is active)
+        all_users = []
+        
+        # Add self if media is active
+        if (self.audio_active or self.video_active) and self.username not in self.user_order:
+            all_users.append(self.username)
+        
+        # Add other users
+        all_users.extend(self.user_order)
+        
+        user_count = len(all_users)
+        
+        if user_count == 0:
+            # Show welcome message when no users
+            welcome_label = QLabel("🎉 Welcome to LAN Communicator!\n\nStart audio or video to see yourself here.\nOthers will appear as they join.")
+            welcome_label.setAlignment(Qt.AlignCenter)
+            welcome_label.setStyleSheet("""
+                QLabel {
+                    font-size: 18px;
+                    color: #666;
+                    padding: 40px;
+                    background-color: #f8f9fa;
+                    border: 2px dashed #ddd;
+                    border-radius: 15px;
+                }
+            """)
+            self.user_grid_layout.addWidget(welcome_label, 0, 0)
+            return
+        
+        # Calculate optimal grid dimensions
+        rows, cols = self._calculate_optimal_grid(user_count)
+        
+        # Add users to grid
+        for i, username in enumerate(all_users):
+            if i >= rows * cols:
+                break  # Don't exceed grid capacity
+            
+            row = i // cols
+            col = i % cols
+            
+            # Create or get user box
+            if username not in self.user_boxes:
+                is_self = (username == self.username)
+                self.user_boxes[username] = UserBox(username, is_self=is_self)
+            
+            user_box = self.user_boxes[username]
+            
+            # Set dynamic size based on grid dimensions and available space
+            self._resize_user_box(user_box, rows, cols, user_count)
+            
+            self.user_grid_layout.addWidget(user_box, row, col)
+        
+        # Set grid layout properties for optimal spacing
+        for i in range(rows):
+            self.user_grid_layout.setRowStretch(i, 1)
+        for j in range(cols):
+            self.user_grid_layout.setColumnStretch(j, 1)
+    
+    def _resize_user_box(self, user_box: UserBox, rows: int, cols: int, user_count: int):
+        """Dynamically resize user box based on grid layout."""
+        # Get the actual available space from the grid widget
+        grid_widget = self.user_grid_widget
+        available_width = grid_widget.width() if grid_widget.width() > 0 else 800
+        available_height = grid_widget.height() if grid_widget.height() > 0 else 600
+        
+        # Account for margins and spacing
+        margin = 20
+        spacing = 10
+        
+        # Calculate size per box
+        box_width = (available_width - margin - (cols - 1) * spacing) // cols
+        box_height = (available_height - margin - (rows - 1) * spacing) // rows
+        
+        # Ensure minimum readable size
+        box_width = max(box_width, 200)
+        box_height = max(box_height, 150)
+        
+        # For single user, make it larger and more cinematic
+        if user_count == 1:
+            box_width = min(available_width - margin, 700)
+            box_height = min(available_height - margin, 500)
+        
+        # Use the new update_size method
+        user_box.update_size(box_width, box_height)
     
     def add_user_to_grid(self, username: str, user_info: dict = None):
-        """Add a user to the grid system."""
+        """Add a user to the dynamic grid system."""
         if username == self.username:
-            return  # Don't add self to the grid here, handle separately
+            # Self is handled automatically in _create_dynamic_grid based on media state
+            self._create_dynamic_grid()
+            return
         
-        if username not in self.user_boxes:
-            # Create new user box
-            user_box = UserBox(username, is_self=False)
-            self.user_boxes[username] = user_box
-            
+        if username not in self.user_order:
             # Add to user order (new users go to the end)
             self.user_order.append(username)
             
-            # Refresh the grid display
-            self._refresh_grid()
+            # Recreate the dynamic grid
+            self._create_dynamic_grid()
             
-            logger.info(f"Added user '{username}' to grid")
+            logger.info(f"Added user '{username}' to dynamic grid")
     
     def remove_user_from_grid(self, username: str):
-        """Remove a user from the grid system."""
+        """Remove a user from the dynamic grid system."""
+        # Remove from user order
+        if username in self.user_order:
+            self.user_order.remove(username)
+        
+        # Remove widget if it exists
         if username in self.user_boxes:
-            # Remove from user order
-            if username in self.user_order:
-                self.user_order.remove(username)
-            
-            # Remove widget
             user_box = self.user_boxes.pop(username)
             user_box.setParent(None)
-            
-            # Refresh the grid display
-            self._refresh_grid()
-            
-            logger.info(f"Removed user '{username}' from grid")
+        
+        # Recreate the dynamic grid
+        self._create_dynamic_grid()
+        
+        logger.info(f"Removed user '{username}' from dynamic grid")
+    
+    def _update_page_navigation(self):
+        """Update page navigation visibility and state."""
+        total_users = len(self.user_order)
+        if self.audio_active or self.video_active:
+            total_users += 1  # Include self
+        
+        # For now, disable pagination since we're using dynamic grid
+        # In the future, this could be used for very large groups (>16 users)
+        if hasattr(self, 'prev_page_btn'):
+            self.prev_page_btn.setVisible(False)
+        if hasattr(self, 'next_page_btn'):
+            self.next_page_btn.setVisible(False)
+        if hasattr(self, 'page_label'):
+            self.page_label.setVisible(False)
     
     def update_user_speaking_state(self, username: str, is_speaking: bool):
         """Update speaking state for a user."""
@@ -1646,58 +1842,12 @@ class MainAppWindow(QMainWindow):
         return self.user_order[start_idx:end_idx]
     
     def _refresh_grid(self):
-        """Refresh the grid display with current page users."""
-        # Clear existing layout
-        for i in reversed(range(self.user_grid_layout.count())):
-            widget = self.user_grid_layout.itemAt(i).widget()
-            if widget:
-                widget.setParent(None)
+        """Refresh the dynamic grid display."""
+        # Simply recreate the dynamic grid
+        self._create_dynamic_grid()
         
-        # Get users for current page
-        current_users = self._get_current_page_users()
-        
-        # Add self to the first position if audio is active
-        if self.audio_active and self.username not in current_users:
-            # Make room for self by removing last user if page is full
-            if len(current_users) >= self.users_per_page:
-                current_users = current_users[:-1]
-            current_users.insert(0, self.username)
-        
-        # Fill grid positions
-        position = 0
-        for row in range(3):
-            for col in range(3):
-                if position < len(current_users):
-                    username = current_users[position]
-                    
-                    # Create or get user box
-                    if username == self.username:
-                        # Create self box if not exists
-                        if self.username not in self.user_boxes:
-                            self.user_boxes[self.username] = UserBox(self.username, is_self=True)
-                        user_box = self.user_boxes[self.username]
-                    else:
-                        user_box = self.user_boxes[username]
-                    
-                    self.user_grid_layout.addWidget(user_box, row, col)
-                    position += 1
-                else:
-                    # Empty slot
-                    empty_slot = QLabel("Empty")
-                    empty_slot.setAlignment(Qt.AlignCenter)
-                    empty_slot.setFixedSize(180, 135)
-                    empty_slot.setStyleSheet("""
-                        QLabel {
-                            border: 2px dashed #ccc;
-                            border-radius: 10px;
-                            color: #999;
-                            font-size: 12px;
-                            background-color: #f9f9f9;
-                        }
-                    """)
-                    self.user_grid_layout.addWidget(empty_slot, row, col)
-        
-        # Update page navigation
+        # Update page navigation (if still needed for very large groups)
+        self._update_page_navigation()
         self._update_page_navigation()
     
     def _update_page_navigation(self):
