@@ -310,9 +310,22 @@ class MainAppWindow(QMainWindow):
         """Handle window resize events to update grid layout."""
         super().resizeEvent(event)
         
-        # Recreate grid with new dimensions after a short delay
-        if hasattr(self, 'user_grid_layout'):
-            QTimer.singleShot(100, self._create_dynamic_grid)  # Small delay to avoid excessive updates
+        # Prevent infinite resize loops by checking if size actually changed significantly
+        if hasattr(self, 'user_grid_layout') and hasattr(self, '_last_resize_size'):
+            old_size = self._last_resize_size
+            new_size = (event.size().width(), event.size().height())
+            
+            # Only recreate grid if size changed by more than 50 pixels in either dimension
+            width_diff = abs(new_size[0] - old_size[0])
+            height_diff = abs(new_size[1] - old_size[1])
+            
+            if width_diff > 50 or height_diff > 50:
+                self._last_resize_size = new_size
+                self._schedule_grid_update()
+        elif hasattr(self, 'user_grid_layout'):
+            # First resize event
+            self._last_resize_size = (event.size().width(), event.size().height())
+            self._schedule_grid_update()
     
     def setup_ui(self):
         """Set up the main user interface."""
@@ -604,6 +617,10 @@ class MainAppWindow(QMainWindow):
         self.user_order = []  # List of usernames in display order
         self.current_page = 0
         self.users_per_page = 9  # Will be dynamic based on user count
+        self._grid_updating = False  # Flag to prevent recursive grid updates
+        self._grid_update_timer = QTimer()  # Timer for debouncing grid updates
+        self._grid_update_timer.setSingleShot(True)
+        self._grid_update_timer.timeout.connect(self._delayed_grid_update)
         
         # Create initial empty state
         self._create_dynamic_grid()
@@ -1726,13 +1743,12 @@ class MainAppWindow(QMainWindow):
             if hasattr(self, 'media_manager') and self.media_manager:
                 is_speaking = self.media_manager.is_user_speaking()
             
-            # Update self speaking state in grid
+            # Update self speaking state in grid (visual only - no grid refresh needed)
             if self.username in self.user_boxes:
                 self.user_boxes[self.username].update_speaking_state(is_speaking)
             
-            # If we start speaking, refresh grid to show self
-            if is_speaking and self.audio_active:
-                self._refresh_grid()
+            # Note: No grid refresh needed for speaking state changes
+            # Speaking state only affects visual appearance (green border), not layout
                 
         except Exception as e:
             logger.error(f"Error updating audio strength display: {e}")
@@ -1768,69 +1784,91 @@ class MainAppWindow(QMainWindow):
     
     def _create_dynamic_grid(self):
         """Create dynamic grid layout based on current user count."""
-        # Clear existing layout
-        for i in reversed(range(self.user_grid_layout.count())):
-            widget = self.user_grid_layout.itemAt(i).widget()
-            if widget:
-                widget.setParent(None)
-        
-        # Get all users (including self if audio/video is active)
-        all_users = []
-        
-        # Add self if media is active
-        if (self.audio_active or self.video_active) and self.username not in self.user_order:
-            all_users.append(self.username)
-        
-        # Add other users
-        all_users.extend(self.user_order)
-        
-        user_count = len(all_users)
-        
-        if user_count == 0:
-            # Show welcome message when no users
-            welcome_label = QLabel("🎉 Welcome to LAN Communicator!\n\nStart audio or video to see yourself here.\nOthers will appear as they join.")
-            welcome_label.setAlignment(Qt.AlignCenter)
-            welcome_label.setStyleSheet("""
-                QLabel {
-                    font-size: 18px;
-                    color: #666;
-                    padding: 40px;
-                    background-color: #f8f9fa;
-                    border: 2px dashed #ddd;
-                    border-radius: 15px;
-                }
-            """)
-            self.user_grid_layout.addWidget(welcome_label, 0, 0)
+        # Prevent recursive grid updates
+        if self._grid_updating:
             return
         
-        # Calculate optimal grid dimensions
-        rows, cols = self._calculate_optimal_grid(user_count)
+        self._grid_updating = True
         
-        # Add users to grid
-        for i, username in enumerate(all_users):
-            if i >= rows * cols:
-                break  # Don't exceed grid capacity
+        try:
+            # Clear existing layout
+            for i in reversed(range(self.user_grid_layout.count())):
+                widget = self.user_grid_layout.itemAt(i).widget()
+                if widget:
+                    widget.setParent(None)
             
-            row = i // cols
-            col = i % cols
+            # Get all users (including self if audio/video is active)
+            all_users = []
             
-            # Create or get user box
-            if username not in self.user_boxes:
-                is_self = (username == self.username)
-                self.user_boxes[username] = UserBox(username, is_self=is_self)
+            # Add self if media is active
+            if (self.audio_active or self.video_active) and self.username not in self.user_order:
+                all_users.append(self.username)
             
-            user_box = self.user_boxes[username]
+            # Add other users
+            all_users.extend(self.user_order)
             
-            # Set dynamic size based on grid dimensions and available space
-            self._resize_user_box(user_box, rows, cols, user_count)
+            user_count = len(all_users)
             
-            self.user_grid_layout.addWidget(user_box, row, col)
-        
-        # Set grid layout properties for optimal spacing
-        for i in range(rows):
-            self.user_grid_layout.setRowStretch(i, 1)
-        for j in range(cols):
-            self.user_grid_layout.setColumnStretch(j, 1)
+            if user_count == 0:
+                # Show welcome message when no users
+                welcome_label = QLabel("🎉 Welcome to LAN Communicator!\n\nStart audio or video to see yourself here.\nOthers will appear as they join.")
+                welcome_label.setAlignment(Qt.AlignCenter)
+                welcome_label.setStyleSheet("""
+                    QLabel {
+                        font-size: 18px;
+                        color: #666;
+                        padding: 40px;
+                        background-color: #f8f9fa;
+                        border: 2px dashed #ddd;
+                        border-radius: 15px;
+                    }
+                """)
+                self.user_grid_layout.addWidget(welcome_label, 0, 0)
+                return
+            
+            # Calculate optimal grid dimensions
+            rows, cols = self._calculate_optimal_grid(user_count)
+            
+            # Add users to grid
+            for i, username in enumerate(all_users):
+                if i >= rows * cols:
+                    break  # Don't exceed grid capacity
+                
+                row = i // cols
+                col = i % cols
+                
+                # Create or get user box
+                if username not in self.user_boxes:
+                    is_self = (username == self.username)
+                    self.user_boxes[username] = UserBox(username, is_self=is_self)
+                
+                user_box = self.user_boxes[username]
+                
+                # Set dynamic size based on grid dimensions and available space
+                self._resize_user_box(user_box, rows, cols, user_count)
+                
+                self.user_grid_layout.addWidget(user_box, row, col)
+            
+            # Set grid layout properties for optimal spacing
+            for i in range(rows):
+                self.user_grid_layout.setRowStretch(i, 1)
+            for j in range(cols):
+                self.user_grid_layout.setColumnStretch(j, 1)
+                
+        finally:
+            # Always reset the flag to allow future updates
+            self._grid_updating = False
+    
+    def _delayed_grid_update(self):
+        """Delayed grid update to prevent rapid successive updates."""
+        if not self._grid_updating:
+            self._create_dynamic_grid()
+    
+    def _schedule_grid_update(self):
+        """Schedule a debounced grid update."""
+        # Stop any existing timer and start a new one
+        self._grid_update_timer.stop()
+        self._grid_update_timer.start(50)  # 50ms debounce delay
     
     def _resize_user_box(self, user_box: UserBox, rows: int, cols: int, user_count: int):
         """Dynamically resize user box based on grid layout."""
@@ -1863,15 +1901,15 @@ class MainAppWindow(QMainWindow):
         """Add a user to the dynamic grid system."""
         if username == self.username:
             # Self is handled automatically in _create_dynamic_grid based on media state
-            self._create_dynamic_grid()
+            self._schedule_grid_update()
             return
         
         if username not in self.user_order:
             # Add to user order (new users go to the end)
             self.user_order.append(username)
             
-            # Recreate the dynamic grid
-            self._create_dynamic_grid()
+            # Schedule grid update with debouncing
+            self._schedule_grid_update()
             
             logger.info(f"Added user '{username}' to dynamic grid")
     
@@ -1886,8 +1924,8 @@ class MainAppWindow(QMainWindow):
             user_box = self.user_boxes.pop(username)
             user_box.setParent(None)
         
-        # Recreate the dynamic grid
-        self._create_dynamic_grid()
+        # Schedule grid update with debouncing
+        self._schedule_grid_update()
         
         logger.info(f"Removed user '{username}' from dynamic grid")
     
@@ -1912,8 +1950,10 @@ class MainAppWindow(QMainWindow):
             user_box = self.user_boxes[username]
             user_box.update_speaking_state(is_speaking)
             
-            # Move speaking user to front if not on current page
-            if is_speaking and username not in self._get_current_page_users():
+            # Only move speaking user to front for large groups (>9 users)
+            # For small groups, avoid unnecessary grid refreshes
+            total_users = len(self.user_order) + (1 if self.audio_active or self.video_active else 0)
+            if is_speaking and total_users > 9 and username not in self._get_current_page_users():
                 self._move_user_to_front(username)
     
     def _move_user_to_front(self, username: str):

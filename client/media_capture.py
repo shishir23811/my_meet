@@ -178,12 +178,18 @@ class AudioCapture:
             raw_strength = self._calculate_audio_strength(indata)
             self._update_strength_metrics(raw_strength)
             
+            # Debug: Log audio activity
+            if raw_strength > 0.0001:  # Only log when there's some audio
+                logger.debug(f"Audio captured: strength={raw_strength:.6f}, size={len(indata)} frames")
+            
             # Convert to bytes for UDP transmission
             audio_bytes = indata.tobytes()
             
-            # Send via client UDP
+            # Send via client UDP (always send, even if silent, for continuous stream)
             if self.client and hasattr(self.client, 'send_audio_packet'):
                 self.client.send_audio_packet(audio_bytes)
+                if raw_strength > 0.0001:  # Only log when there's audio activity
+                    logger.debug(f"Audio packet sent: {len(audio_bytes)} bytes")
                 
         except Exception as e:
             logger.error(f"Audio callback error: {e}")

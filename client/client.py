@@ -158,6 +158,9 @@ class LANClient(QObject):
             heartbeat_thread.start()
             self.threads.append(heartbeat_thread)
             
+            # Send UDP hello packet to let server learn our UDP address
+            self._send_udp_hello()
+            
             logger.info("Client threads started")
             return True
             
@@ -554,7 +557,7 @@ class LANClient(QObject):
             
             packed_data = packet.pack()
             self.udp_socket.sendto(packed_data, (self.server_address, self.udp_port))
-            logger.debug(f"Sent audio packet: seq={packet.seq_num}, size={len(audio_data)}")
+            logger.info(f"Sent audio packet: seq={packet.seq_num}, size={len(audio_data)}")
             
             # Reset media error count on successful send
             if hasattr(self, 'audio_error_count'):
@@ -563,6 +566,24 @@ class LANClient(QObject):
         except Exception as e:
             logger.error(f"Failed to send audio packet: {e}")
             self._handle_media_send_error('audio', e)
+    
+    def _send_udp_hello(self):
+        """Send a UDP hello packet to let server learn our UDP address."""
+        try:
+            # Create a special hello packet with a known stream ID
+            hello_packet = UDPPacket(
+                stream_id=0,  # Special stream ID for hello packets
+                seq_num=0,
+                timestamp=int(time.time() * 1_000_000),
+                payload=f"HELLO:{self.username}".encode('utf-8')
+            )
+            
+            packed_data = hello_packet.pack()
+            self.udp_socket.sendto(packed_data, (self.server_address, self.udp_port))
+            logger.info(f"Sent UDP hello packet to server")
+            
+        except Exception as e:
+            logger.error(f"Failed to send UDP hello packet: {e}")
     
     def send_video_packet(self, video_data: bytes):
         """
