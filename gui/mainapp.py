@@ -15,6 +15,11 @@ from PySide6.QtGui import QPixmap, QImage
 from utils.logger import setup_logger
 from utils.error_manager import error_manager, ErrorCategory, ErrorSeverity
 from gui.status_widgets import EnhancedStatusBar, NotificationWidget
+from gui.icons import (
+    MICROPHONE_SVG, MICROPHONE_OFF_SVG, VIDEO_SVG, VIDEO_OFF_SVG,
+    SCREEN_SHARE_SVG, SCREEN_SHARE_OFF_SVG, PHONE_HANGUP_SVG,
+    USERS_SVG, CHAT_SVG, set_button_icon
+)
 from datetime import datetime
 import os
 import hashlib
@@ -482,7 +487,7 @@ class MainAppWindow(QMainWindow):
         sidebar.setFixedWidth(350)  # Fixed width sidebar
         sidebar.setStyleSheet("""
             QWidget {
-                background-color: #f8f9fa;
+                background-color: #e9ecef;
                 border-left: 1px solid #ddd;
             }
         """)
@@ -496,7 +501,7 @@ class MainAppWindow(QMainWindow):
         header.setFixedHeight(40)
         header.setStyleSheet("""
             QWidget {
-                background-color: #fff;
+                background-color: #dee2e6;
                 border-bottom: 1px solid #ddd;
             }
         """)
@@ -515,12 +520,12 @@ class MainAppWindow(QMainWindow):
                 border: none;
                 font-size: 16px;
                 font-weight: bold;
-                color: #666;
+                color: #495057;
                 border-radius: 15px;
             }
             QPushButton:hover {
-                background-color: #f0f0f0;
-                color: #333;
+                background-color: #ced4da;
+                color: #212529;
             }
         """)
         close_btn.clicked.connect(self.hide_chat_sidebar)
@@ -533,17 +538,19 @@ class MainAppWindow(QMainWindow):
         self.sidebar_tabs.setStyleSheet("""
             QTabWidget::pane {
                 border: none;
-                background-color: #f8f9fa;
+                background-color: #e9ecef;
             }
             QTabBar::tab {
-                background-color: #e9ecef;
+                background-color: #ced4da;
+                color: #495057;
                 padding: 8px 16px;
                 margin-right: 2px;
                 border-top-left-radius: 4px;
                 border-top-right-radius: 4px;
             }
             QTabBar::tab:selected {
-                background-color: #fff;
+                background-color: #f8f9fa;
+                color: #212529;
                 border-bottom: 2px solid #007bff;
             }
         """)
@@ -566,7 +573,7 @@ class MainAppWindow(QMainWindow):
         sidebar.setFixedWidth(300)  # Fixed width sidebar
         sidebar.setStyleSheet("""
             QWidget {
-                background-color: #f8f9fa;
+                background-color: #e9ecef;
                 border-left: 1px solid #ddd;
             }
         """)
@@ -580,7 +587,7 @@ class MainAppWindow(QMainWindow):
         header.setFixedHeight(40)
         header.setStyleSheet("""
             QWidget {
-                background-color: #fff;
+                background-color: #dee2e6;
                 border-bottom: 1px solid #ddd;
             }
         """)
@@ -599,12 +606,12 @@ class MainAppWindow(QMainWindow):
                 border: none;
                 font-size: 16px;
                 font-weight: bold;
-                color: #666;
+                color: #495057;
                 border-radius: 15px;
             }
             QPushButton:hover {
-                background-color: #f0f0f0;
-                color: #333;
+                background-color: #ced4da;
+                color: #212529;
             }
         """)
         close_btn.clicked.connect(self.hide_users_sidebar)
@@ -624,7 +631,7 @@ class MainAppWindow(QMainWindow):
             QLabel {
                 font-size: 14px;
                 font-weight: bold;
-                color: #333;
+                color: #212529;
                 margin-bottom: 10px;
             }
         """)
@@ -634,19 +641,20 @@ class MainAppWindow(QMainWindow):
         self.users_list_widget = QListWidget()
         self.users_list_widget.setStyleSheet("""
             QListWidget {
-                background-color: #fff;
-                border: 1px solid #ddd;
+                background-color: #f8f9fa;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
                 padding: 5px;
             }
             QListWidget::item {
                 padding: 8px;
-                border-bottom: 1px solid #eee;
+                border-bottom: 1px solid #dee2e6;
                 border-radius: 4px;
                 margin: 2px 0;
+                color: #212529;
             }
             QListWidget::item:hover {
-                background-color: #f0f0f0;
+                background-color: #e9ecef;
             }
             QListWidget::item:selected {
                 background-color: #e3f2fd;
@@ -654,53 +662,6 @@ class MainAppWindow(QMainWindow):
             }
         """)
         users_layout.addWidget(self.users_list_widget)
-        
-        # Session info section
-        session_info_label = QLabel("Session Information")
-        session_info_label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                font-weight: bold;
-                color: #333;
-                margin-top: 20px;
-                margin-bottom: 10px;
-            }
-        """)
-        users_layout.addWidget(session_info_label)
-        
-        # Session details
-        self.session_details = QLabel()
-        self.session_details.setStyleSheet("""
-            QLabel {
-                background-color: #fff;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 10px;
-                font-size: 12px;
-                color: #666;
-            }
-        """)
-        self.update_session_details()
-        users_layout.addWidget(self.session_details)
-        
-        # Copy session info button
-        copy_info_btn = QPushButton("📋 Copy Session Info")
-        copy_info_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #007bff;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-                font-weight: bold;
-                margin-top: 10px;
-            }
-            QPushButton:hover {
-                background-color: #0056b3;
-            }
-        """)
-        copy_info_btn.clicked.connect(self.copy_session_info)
-        users_layout.addWidget(copy_info_btn)
         
         users_layout.addStretch()
         
@@ -1037,80 +998,44 @@ class MainAppWindow(QMainWindow):
         center_layout = QHBoxLayout()
         center_layout.setSpacing(15)
         
-        # Audio button
-        self.audio_btn = QPushButton("🎤")
+        # Audio button (initially OFF)
+        self.audio_btn = QPushButton()
         self.audio_btn.setFixedSize(50, 50)
         self.audio_btn.clicked.connect(self.toggle_audio)
-        self.audio_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3c4043;
-                border: none;
-                border-radius: 25px;
-                font-size: 20px;
-                color: white;
-            }
-            QPushButton:hover {
-                background-color: #5f6368;
-            }
-            QPushButton:pressed {
-                background-color: #2d2d2d;
-            }
-        """)
+        # Set initial OFF state with SVG icon
+        set_button_icon(self.audio_btn, MICROPHONE_SVG, False)
         center_layout.addWidget(self.audio_btn)
         
-        # Video button
-        self.video_btn = QPushButton("📹")
+        # Video button (initially OFF)
+        self.video_btn = QPushButton()
         self.video_btn.setFixedSize(50, 50)
         self.video_btn.clicked.connect(self.toggle_video)
-        self.video_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3c4043;
-                border: none;
-                border-radius: 25px;
-                font-size: 20px;
-                color: white;
-            }
-            QPushButton:hover {
-                background-color: #5f6368;
-            }
-            QPushButton:pressed {
-                background-color: #2d2d2d;
-            }
-        """)
+        # Set initial OFF state with SVG icon
+        set_button_icon(self.video_btn, VIDEO_SVG, False)
         center_layout.addWidget(self.video_btn)
         
-        # Screen share button
-        self.screen_share_btn = QPushButton("🖥️")
+        # Screen share button (initially OFF)
+        self.screen_share_btn = QPushButton()
         self.screen_share_btn.setFixedSize(50, 50)
         self.screen_share_btn.clicked.connect(self.toggle_screen_share)
-        self.screen_share_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3c4043;
-                border: none;
-                border-radius: 25px;
-                font-size: 18px;
-                color: white;
-            }
-            QPushButton:hover {
-                background-color: #5f6368;
-            }
-            QPushButton:pressed {
-                background-color: #2d2d2d;
-            }
-        """)
+        # Set initial OFF state with SVG icon
+        set_button_icon(self.screen_share_btn, SCREEN_SHARE_SVG, False)
         center_layout.addWidget(self.screen_share_btn)
         
         # End session button (renamed from leave)
-        self.end_session_btn = QPushButton("📞")
+        self.end_session_btn = QPushButton()
         self.end_session_btn.setFixedSize(50, 50)
         self.end_session_btn.clicked.connect(self.handle_leave_session)
+        # Set hangup icon with red background
+        from gui.icons import create_svg_icon
+        hangup_icon = create_svg_icon(PHONE_HANGUP_SVG, QSize(24, 24), "white")
+        self.end_session_btn.setIcon(hangup_icon)
+        self.end_session_btn.setIconSize(QSize(24, 24))
         self.end_session_btn.setStyleSheet("""
             QPushButton {
                 background-color: #ea4335;
                 border: none;
                 border-radius: 25px;
-                font-size: 20px;
-                color: white;
             }
             QPushButton:hover {
                 background-color: #d33b2c;
@@ -1131,16 +1056,18 @@ class MainAppWindow(QMainWindow):
         right_layout.setSpacing(10)
         
         # Users button
-        self.users_btn = QPushButton("👥")
+        self.users_btn = QPushButton()
         self.users_btn.setFixedSize(50, 50)
         self.users_btn.clicked.connect(self.toggle_users_sidebar)
+        # Set users icon
+        users_icon = create_svg_icon(USERS_SVG, QSize(24, 24), "white")
+        self.users_btn.setIcon(users_icon)
+        self.users_btn.setIconSize(QSize(24, 24))
         self.users_btn.setStyleSheet("""
             QPushButton {
                 background-color: #3c4043;
                 border: none;
                 border-radius: 25px;
-                font-size: 20px;
-                color: white;
             }
             QPushButton:hover {
                 background-color: #5f6368;
@@ -1152,16 +1079,18 @@ class MainAppWindow(QMainWindow):
         right_layout.addWidget(self.users_btn)
         
         # Chat button
-        self.chat_btn = QPushButton("💬")
+        self.chat_btn = QPushButton()
         self.chat_btn.setFixedSize(50, 50)
         self.chat_btn.clicked.connect(self.toggle_chat_sidebar)
+        # Set chat icon
+        chat_icon = create_svg_icon(CHAT_SVG, QSize(24, 24), "white")
+        self.chat_btn.setIcon(chat_icon)
+        self.chat_btn.setIconSize(QSize(24, 24))
         self.chat_btn.setStyleSheet("""
             QPushButton {
                 background-color: #3c4043;
                 border: none;
                 border-radius: 25px;
-                font-size: 20px;
-                color: white;
             }
             QPushButton:hover {
                 background-color: #5f6368;
@@ -1179,121 +1108,7 @@ class MainAppWindow(QMainWindow):
         # Create session info popup (initially hidden)
         self.create_session_info_popup()
     
-    def create_bottom_controls_old(self, parent_layout):
-        """Create bottom control bar like Google Meet."""
-        controls_container = QWidget()
-        controls_container.setFixedHeight(80)
-        controls_container.setStyleSheet("""
-            QWidget {
-                background-color: #1a1a1a;
-                border-top: 1px solid #333;
-            }
-        """)
-        
-        controls_layout = QHBoxLayout(controls_container)
-        controls_layout.setContentsMargins(20, 15, 20, 15)
-        controls_layout.setSpacing(15)
-        
-        # Left side - session info (optional)
-        left_spacer = QWidget()
-        controls_layout.addWidget(left_spacer, 1)
-        
-        # Center - main controls
-        center_layout = QHBoxLayout()
-        center_layout.setSpacing(15)
-        
-        # Audio button
-        self.audio_btn = QPushButton("🎤")
-        self.audio_btn.setFixedSize(50, 50)
-        self.audio_btn.clicked.connect(self.toggle_audio)
-        self.audio_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3c4043;
-                border: none;
-                border-radius: 25px;
-                font-size: 20px;
-                color: white;
-            }
-            QPushButton:hover {
-                background-color: #5f6368;
-            }
-            QPushButton:pressed {
-                background-color: #2d2d2d;
-            }
-        """)
-        center_layout.addWidget(self.audio_btn)
-        
-        # Video button
-        self.video_btn = QPushButton("📹")
-        self.video_btn.setFixedSize(50, 50)
-        self.video_btn.clicked.connect(self.toggle_video)
-        self.video_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3c4043;
-                border: none;
-                border-radius: 25px;
-                font-size: 20px;
-                color: white;
-            }
-            QPushButton:hover {
-                background-color: #5f6368;
-            }
-            QPushButton:pressed {
-                background-color: #2d2d2d;
-            }
-        """)
-        center_layout.addWidget(self.video_btn)
-        
-        # Screen share button
-        self.screen_share_btn = QPushButton("🖥️")
-        self.screen_share_btn.setFixedSize(50, 50)
-        self.screen_share_btn.clicked.connect(self.toggle_screen_share)
-        self.screen_share_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3c4043;
-                border: none;
-                border-radius: 25px;
-                font-size: 18px;
-                color: white;
-            }
-            QPushButton:hover {
-                background-color: #5f6368;
-            }
-            QPushButton:pressed {
-                background-color: #2d2d2d;
-            }
-        """)
-        center_layout.addWidget(self.screen_share_btn)
-        
-        # Leave button
-        leave_btn = QPushButton("📞")
-        leave_btn.setFixedSize(50, 50)
-        leave_btn.clicked.connect(self.handle_leave_session)
-        leave_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #ea4335;
-                border: none;
-                border-radius: 25px;
-                font-size: 20px;
-                color: white;
-            }
-            QPushButton:hover {
-                background-color: #d33b2c;
-            }
-            QPushButton:pressed {
-                background-color: #b52d20;
-            }
-        """)
-        center_layout.addWidget(leave_btn)
-        
-        controls_layout.addLayout(center_layout)
-        
-        # Right side spacer
-        right_spacer = QWidget()
-        controls_layout.addWidget(right_spacer, 1)
-        
-        parent_layout.addWidget(controls_container)
-    
+
 
     
     def setup_status_bar(self):
@@ -1584,15 +1399,7 @@ class MainAppWindow(QMainWindow):
             if not self.audio_active:
                 self.start_audio.emit()
                 self.audio_active = True
-                self.audio_btn.setText("🎤 Stop Audio")
-                self.audio_btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #f44336;
-                        color: white;
-                        font-size: 14px;
-                        font-weight: bold;
-                    }
-                """)
+                self._update_audio_button_state(True)
                 self.error_manager.update_component_status('audio', 'active', 'Audio streaming started')
                 self.show_success_notification("Audio Started", "Audio streaming is now active")
                 # Refresh grid to show self when audio starts
@@ -1601,8 +1408,7 @@ class MainAppWindow(QMainWindow):
             else:
                 self.stop_audio.emit()
                 self.audio_active = False
-                self.audio_btn.setText("🎤 Start Audio")
-                self.audio_btn.setStyleSheet("font-size: 14px; font-weight: bold;")
+                self._update_audio_button_state(False)
                 self.error_manager.update_component_status('audio', 'inactive', 'Audio streaming stopped')
                 # Refresh grid to hide self when audio stops
                 self._create_dynamic_grid()
@@ -1624,15 +1430,7 @@ class MainAppWindow(QMainWindow):
             if not self.video_active:
                 self.start_video.emit()
                 self.video_active = True
-                self.video_btn.setText("📹 Stop Video")
-                self.video_btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #f44336;
-                        color: white;
-                        font-size: 14px;
-                        font-weight: bold;
-                    }
-                """)
+                self._update_video_button_state(True)
                 self.error_manager.update_component_status('video', 'active', 'Video streaming started')
                 self.show_success_notification("Video Started", "Video streaming is now active")
                 # Refresh grid to show self with video
@@ -1641,8 +1439,7 @@ class MainAppWindow(QMainWindow):
             else:
                 self.stop_video.emit()
                 self.video_active = False
-                self.video_btn.setText("📹 Start Video")
-                self.video_btn.setStyleSheet("font-size: 14px; font-weight: bold;")
+                self._update_video_button_state(False)
                 self.error_manager.update_component_status('video', 'inactive', 'Video streaming stopped')
                 # Clear self video and refresh grid
                 self.set_self_video_active(False)
@@ -1665,15 +1462,7 @@ class MainAppWindow(QMainWindow):
             if not self.screen_share_active:
                 self.start_screen_share.emit()
                 self.screen_share_active = True
-                self.screen_share_btn.setText("🖥️ Stop Screen Share")
-                self.screen_share_btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #f44336;
-                        color: white;
-                        font-size: 14px;
-                        font-weight: bold;
-                    }
-                """)
+                self._update_screen_share_button_state(True)
                 self.error_manager.update_component_status('screen_share', 'active', 'Screen sharing started')
                 self.show_success_notification("Screen Share Started", "Screen sharing is now active")
                 
@@ -1684,15 +1473,7 @@ class MainAppWindow(QMainWindow):
             else:
                 self.stop_screen_share.emit()
                 self.screen_share_active = False
-                self.screen_share_btn.setText("🖥️ Start Screen Share")
-                self.screen_share_btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #FF9800;
-                        color: white;
-                        font-size: 14px;
-                        font-weight: bold;
-                    }
-                """)
+                self._update_screen_share_button_state(False)
                 self.error_manager.update_component_status('screen_share', 'inactive', 'Screen sharing stopped')
                 
                 # Remove presentation box for self
@@ -1708,6 +1489,18 @@ class MainAppWindow(QMainWindow):
                 component='screen_share',
                 details=str(e)
             )
+    
+    def _update_audio_button_state(self, is_active: bool):
+        """Update audio button appearance based on state."""
+        set_button_icon(self.audio_btn, MICROPHONE_SVG, is_active)
+    
+    def _update_video_button_state(self, is_active: bool):
+        """Update video button appearance based on state."""
+        set_button_icon(self.video_btn, VIDEO_SVG, is_active)
+    
+    def _update_screen_share_button_state(self, is_active: bool):
+        """Update screen share button appearance based on state."""
+        set_button_icon(self.screen_share_btn, SCREEN_SHARE_SVG, is_active)
     
     def add_placeholder_video(self, label: str):
         """Add a placeholder video frame to the grid."""
