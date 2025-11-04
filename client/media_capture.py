@@ -1024,16 +1024,16 @@ class ScreenCapture:
                 import numpy as np
                 import cv2
                 
-                # Convert BGRA to RGB using numpy
+                # Convert BGRA to BGR using numpy (OpenCV's native format)
                 img_array = np.frombuffer(screenshot.bgra, dtype=np.uint8)
                 img_array = img_array.reshape((screenshot.height, screenshot.width, 4))
                 
-                # Convert BGRA to RGB (OpenCV uses BGR, so we need RGB for proper colors)
-                img_rgb = cv2.cvtColor(img_array, cv2.COLOR_BGRA2RGB)
+                # Convert BGRA to BGR (OpenCV's native format for proper color encoding)
+                img_bgr = cv2.cvtColor(img_array, cv2.COLOR_BGRA2BGR)
                 
                 # Encode as JPEG using OpenCV
                 encode_params = [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality]
-                success, jpeg_buffer = cv2.imencode('.jpg', img_rgb, encode_params)
+                success, jpeg_buffer = cv2.imencode('.jpg', img_bgr, encode_params)
                 
                 if success:
                     return jpeg_buffer.tobytes()

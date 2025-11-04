@@ -27,24 +27,24 @@ import hashlib
 logger = setup_logger(__name__)
 
 def generate_avatar_color(username: str) -> str:
-    """Generate a consistent color for a username using hash."""
-    # Predefined set of pleasant colors for avatars
+    """Generate a consistent color for a username using hash - matching reference images."""
+    # Colors matching the reference images for profile boxes
     colors = [
-        "#FF6B6B",  # Red
-        "#4ECDC4",  # Teal
-        "#45B7D1",  # Blue
-        "#96CEB4",  # Green
-        "#FFEAA7",  # Yellow
-        "#DDA0DD",  # Plum
-        "#98D8C8",  # Mint
-        "#F7DC6F",  # Light Yellow
-        "#BB8FCE",  # Light Purple
-        "#85C1E9",  # Light Blue
-        "#F8C471",  # Orange
-        "#82E0AA",  # Light Green
-        "#F1948A",  # Light Red
-        "#85929E",  # Gray Blue
-        "#D7BDE2",  # Lavender
+        "#2E7D32",  # Dark Green (like Shishir Kumar in reference)
+        "#1976D2",  # Blue (like CS23B2043 in reference)  
+        "#7B1FA2",  # Purple (like omnamsmruf in reference)
+        "#5D4037",  # Brown (like Shishir Kumar Reddy Ambala in reference)
+        "#D32F2F",  # Red
+        "#F57C00",  # Orange
+        "#388E3C",  # Green
+        "#303F9F",  # Indigo
+        "#C2185B",  # Pink
+        "#00796B",  # Teal
+        "#455A64",  # Blue Grey
+        "#8BC34A",  # Light Green
+        "#FF9800",  # Amber
+        "#9C27B0",  # Purple
+        "#607D8B",  # Blue Grey
     ]
     
     # Use hash of username to get consistent color
@@ -66,12 +66,15 @@ class PresentationBox(QWidget):
         """Set up the presentation box UI."""
         self.setMinimumSize(400, 300)  # Larger minimum size for presentations
         
-        # Presentation box styling
+        # Presentation box styling with depth effect
         self.setStyleSheet("""
             PresentationBox {
                 background-color: #1a1a1a;
                 border: 2px solid #444;
-                border-radius: 8px;
+                border-radius: 12px;
+                /* Depth effect */
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #252525, stop:1 #1a1a1a);
             }
         """)
         
@@ -82,7 +85,7 @@ class PresentationBox(QWidget):
         self.screen_area.setStyleSheet("""
             QLabel {
                 background-color: #000;
-                border-radius: 4px;
+                border-radius: 10px;
                 color: #666;
                 font-size: 16px;
             }
@@ -160,18 +163,26 @@ class UserBox(QWidget):
         self.setup_ui()
     
     def setup_ui(self):
-        """Set up the user box UI with Google Meet style."""
+        """Set up the user box UI matching reference images."""
         # Dynamic sizing - will be set by the grid layout
         self.setMinimumSize(200, 150)  # Minimum size for readability
         
-        # Use absolute positioning for Google Meet style layout
-        # The border will be applied to the entire UserBox for speaking indication
-        self.setStyleSheet("""
-            UserBox {
-                background-color: #2d2d2d;
+        # Create a colored background frame to ensure color shows
+        self.background_frame = QFrame(self)
+        self.background_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {self.avatar_color};
                 border: 2px solid transparent;
-                border-radius: 8px;
-            }
+                border-radius: 12px;
+            }}
+        """)
+        
+        # Also set the UserBox style to override any parent styles
+        self.setStyleSheet(f"""
+            UserBox {{
+                background-color: {self.avatar_color};
+                border: none;
+            }}
         """)
         
         # Video area (can show video or avatar)
@@ -185,21 +196,35 @@ class UserBox(QWidget):
         # Set initial placeholder style and content
         self._set_placeholder_mode()
         
-        # Username label (positioned at bottom left)
+        # Username label (positioned at bottom left corner like reference)
         self.name_label = QLabel(self)
         display_name = f"{self.username}" if not self.is_self else f"{self.username}"
         self.name_label.setText(display_name)
         self.name_label.setStyleSheet("""
             QLabel {
-                background-color: rgba(0, 0, 0, 0.6);
+                background-color: transparent;
                 color: white;
-                padding: 8px 12px;
-                border-radius: 6px;
-                font-weight: 500;
+                padding: 4px 8px;
+                font-weight: 600;
                 font-size: 14px;
+                border: none;
             }
         """)
         self.name_label.adjustSize()
+        
+        # Microphone mute icon (top right corner like reference)
+        from gui.icons import create_svg_icon
+        self.mic_icon = QLabel(self)
+        mic_off_icon = create_svg_icon(MICROPHONE_OFF_SVG, QSize(20, 20), "white")
+        self.mic_icon.setPixmap(mic_off_icon.pixmap(QSize(20, 20)))
+        self.mic_icon.setFixedSize(24, 24)
+        self.mic_icon.setStyleSheet("""
+            QLabel {
+                background-color: rgba(0, 0, 0, 0.5);
+                border-radius: 12px;
+                padding: 2px;
+            }
+        """)
         
         # Set initial speaking state
         self.update_speaking_state(False)
@@ -208,102 +233,94 @@ class UserBox(QWidget):
         """Update the visual state based on speaking status."""
         self.is_speaking = is_speaking
         
-        # Apply green border to the entire UserBox when speaking
+        # Apply green border when speaking, maintain colored background
         if is_speaking:
-            self.setStyleSheet("""
-                UserBox {
-                    background-color: #2d2d2d;
-                    border: 4px solid #4CAF50;
-                    border-radius: 8px;
-                }
-            """)
+            if hasattr(self, 'background_frame'):
+                self.background_frame.setStyleSheet(f"""
+                    QFrame {{
+                        background-color: {self.avatar_color};
+                        border: 4px solid #4CAF50;
+                        border-radius: 12px;
+                    }}
+                """)
         else:
-            self.setStyleSheet("""
-                UserBox {
-                    background-color: #2d2d2d;
-                    border: 2px solid transparent;
-                    border-radius: 8px;
-                }
-            """)
+            if hasattr(self, 'background_frame'):
+                self.background_frame.setStyleSheet(f"""
+                    QFrame {{
+                        background-color: {self.avatar_color};
+                        border: 2px solid transparent;
+                        border-radius: 12px;
+                    }}
+                """)
     
     def _set_placeholder_mode(self):
-        """Set the video area to show avatar circle with initial."""
+        """Set the video area to show large initial letter like reference images."""
         self.has_video = False
         
         # Get first letter of username for avatar
         initial = self.username[0].upper() if self.username else "?"
         
-        # Initial styling - will be updated by update_size
-        # No border on the avatar circle since border is now on the UserBox
-        self.video_area.setStyleSheet(f"""
-            QLabel {{
-                background-color: {self.avatar_color};
-                border-radius: 50px;
+        # Large initial letter styling matching reference images
+        self.video_area.setStyleSheet("""
+            QLabel {
+                background-color: transparent;
                 color: white;
-                font-size: 24px;
+                font-size: 72px;
                 font-weight: bold;
                 text-align: center;
-            }}
+                border: none;
+            }
         """)
         self.video_area.setText(initial)
         self.video_area.setPixmap(QPixmap())  # Clear any existing pixmap
     
     def update_size(self, width: int, height: int):
-        """Update the size and position elements for Google Meet style."""
+        """Update the size and position elements matching reference images."""
         self.setFixedSize(width, height)
+        
+        # Resize background frame to fill the entire UserBox
+        if hasattr(self, 'background_frame'):
+            self.background_frame.setGeometry(0, 0, width, height)
         
         if hasattr(self, 'video_area'):
             if not self.has_video:
-                # Avatar mode - show circle in center of the box
-                # For single user, make avatar much larger
-                if width > 400 and height > 300:  # Large single user view
-                    circle_size = min(width, height) * 0.25  # Larger for single user
-                    circle_size = max(80, min(circle_size, 200))
-                else:
-                    # For grid view, smaller avatars
-                    circle_size = min(width, height) * 0.4
-                    circle_size = max(40, min(circle_size, 100))
+                # Avatar mode - fill entire box with large initial letter
+                self.video_area.setGeometry(0, 0, width, height)
                 
-                # Calculate font size based on circle size
-                font_size = circle_size // 4
-                font_size = max(16, min(font_size, 48))
-                
-                # Center the avatar circle
-                avatar_x = (width - circle_size) // 2
-                avatar_y = (height - circle_size) // 2
-                
-                self.video_area.setGeometry(int(avatar_x), int(avatar_y), 
-                                          int(circle_size), int(circle_size))
+                # Calculate font size based on box size (like reference images)
+                font_size = min(width, height) * 0.3  # 30% of smaller dimension
+                font_size = max(32, min(font_size, 120))  # Clamp between 32-120px
                 
                 # Get first letter for avatar
                 initial = self.username[0].upper() if self.username else "?"
                 
-                # Update avatar circle styling (no border since it's on the UserBox now)
+                # Update styling for large initial letter
                 self.video_area.setStyleSheet(f"""
                     QLabel {{
-                        background-color: {self.avatar_color};
-                        border-radius: {int(circle_size // 2)}px;
+                        background-color: transparent;
                         color: white;
                         font-size: {int(font_size)}px;
                         font-weight: bold;
                         text-align: center;
+                        border: none;
                     }}
                 """)
                 self.video_area.setText(initial)
             else:
-                # Video mode - fill the entire box with video
-                # Leave small margin for the border
-                margin = 4
-                self.video_area.setGeometry(margin, margin, width - 2*margin, height - 2*margin)
+                # Video mode - fill the entire box completely with rounded corners
+                self.video_area.setGeometry(0, 0, width, height)
         
-        # Position username label at bottom left
+        # Position username label at bottom left corner (like reference images)
         if hasattr(self, 'name_label'):
             self.name_label.adjustSize()
-            label_width = self.name_label.width()
             label_height = self.name_label.height()
-            
-            # Position at bottom left with some margin
-            self.name_label.move(20, height - label_height - 20)
+            # Position at bottom left corner with margin
+            self.name_label.move(12, height - label_height - 12)
+        
+        # Position microphone icon at top right corner (like reference images)
+        if hasattr(self, 'mic_icon'):
+            # Position at top right corner with margin
+            self.mic_icon.move(width - 24 - 8, 8)
     
     def _set_video_mode(self):
         """Set the video area to show video frames."""
@@ -312,7 +329,7 @@ class UserBox(QWidget):
         self.video_area.setStyleSheet("""
             QLabel {
                 background-color: #000;
-                border-radius: 4px;
+                border-radius: 12px;
             }
         """)
         self.video_area.setText("")  # Clear text when showing video
@@ -355,6 +372,19 @@ class UserBox(QWidget):
     def clear_video(self):
         """Clear video and return to placeholder mode."""
         self._set_placeholder_mode()
+    
+    def update_audio_state(self, is_audio_active: bool):
+        """Update microphone icon based on audio state."""
+        if hasattr(self, 'mic_icon'):
+            from gui.icons import create_svg_icon
+            if is_audio_active:
+                # Show microphone icon (audio active)
+                mic_icon = create_svg_icon(MICROPHONE_SVG, QSize(20, 20), "white")
+            else:
+                # Show muted microphone icon (audio inactive)
+                mic_icon = create_svg_icon(MICROPHONE_OFF_SVG, QSize(20, 20), "white")
+            
+            self.mic_icon.setPixmap(mic_icon.pixmap(QSize(20, 20)))
 
 class MainAppWindow(QMainWindow):
     """
@@ -906,11 +936,14 @@ class MainAppWindow(QMainWindow):
         """Create unified view with all users and presentations in one area."""
         widget = QWidget()
         
-        # Set dark background like Google Meet
+        # Set dark background like Google Meet, but exclude UserBox
         widget.setStyleSheet("""
             QWidget {
                 background-color: #202124;
                 color: white;
+            }
+            UserBox {
+                background-color: none;
             }
         """)
         
@@ -925,10 +958,14 @@ class MainAppWindow(QMainWindow):
                 background-color: #202124;
                 border: none;
             }
+            UserBox {
+                background-color: none;
+            }
         """)
         self.content_layout = QGridLayout(self.content_area)
-        self.content_layout.setSpacing(8)
-        self.content_layout.setContentsMargins(20, 20, 20, 20)
+        # Increased spacing between profile boxes and added margins from window edges
+        self.content_layout.setSpacing(15)  # Gap between profile boxes
+        self.content_layout.setContentsMargins(25, 25, 25, 25)  # Margin from window edges
         
         # Initialize user and presentation management
         self.user_boxes = {}  # username -> UserBox widget
@@ -1402,16 +1439,18 @@ class MainAppWindow(QMainWindow):
                 self._update_audio_button_state(True)
                 self.error_manager.update_component_status('audio', 'active', 'Audio streaming started')
                 self.show_success_notification("Audio Started", "Audio streaming is now active")
-                # Refresh grid to show self when audio starts
-                self._create_dynamic_grid()
+                # Update microphone icon for self
+                if self.username in self.user_boxes:
+                    self.user_boxes[self.username].update_audio_state(True)
                 logger.info("Audio started")
             else:
                 self.stop_audio.emit()
                 self.audio_active = False
                 self._update_audio_button_state(False)
                 self.error_manager.update_component_status('audio', 'inactive', 'Audio streaming stopped')
-                # Refresh grid to hide self when audio stops
-                self._create_dynamic_grid()
+                # Update microphone icon for self
+                if self.username in self.user_boxes:
+                    self.user_boxes[self.username].update_audio_state(False)
                 logger.info("Audio stopped")
         except Exception as e:
             logger.error(f"Error toggling audio: {e}")
@@ -1433,17 +1472,14 @@ class MainAppWindow(QMainWindow):
                 self._update_video_button_state(True)
                 self.error_manager.update_component_status('video', 'active', 'Video streaming started')
                 self.show_success_notification("Video Started", "Video streaming is now active")
-                # Refresh grid to show self with video
-                self._create_dynamic_grid()
                 logger.info("Video started")
             else:
                 self.stop_video.emit()
                 self.video_active = False
                 self._update_video_button_state(False)
                 self.error_manager.update_component_status('video', 'inactive', 'Video streaming stopped')
-                # Clear self video and refresh grid
+                # Clear self video
                 self.set_self_video_active(False)
-                self._create_dynamic_grid()
                 logger.info("Video stopped")
         except Exception as e:
             logger.error(f"Error toggling video: {e}")

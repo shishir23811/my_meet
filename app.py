@@ -741,6 +741,9 @@ class LANCommunicatorApp(QStackedWidget):
                 if success:
                     error_manager.update_component_status('screen_share', 'active', 'Screen sharing started')
                     logger.info("Screen sharing started successfully")
+                    
+                    # Start local screen frame updates for self-view
+                    self.start_local_screen_updates()
                 else:
                     error_message = self.media_capture.get_screen_error()
                     error_manager.report_error(
@@ -768,6 +771,9 @@ class LANCommunicatorApp(QStackedWidget):
                 self.media_capture.stop_screen_share()
                 error_manager.update_component_status('screen_share', 'inactive', 'Screen sharing stopped')
                 logger.info("Screen sharing stopped successfully")
+                
+                # Stop local screen frame updates
+                self.stop_local_screen_updates()
             except Exception as e:
                 logger.error(f"Failed to stop screen sharing: {e}")
                 error_manager.report_error(
@@ -777,6 +783,36 @@ class LANCommunicatorApp(QStackedWidget):
                     component='screen_share',
                     details=str(e)
                 )
+    
+    def start_local_screen_updates(self):
+        """Start local screen frame updates for self-view."""
+        if not hasattr(self, 'local_screen_timer'):
+            from PySide6.QtCore import QTimer
+            self.local_screen_timer = QTimer()
+            self.local_screen_timer.timeout.connect(self.update_local_screen_frame)
+        
+        # Update every 2 seconds (same as screen capture interval)
+        self.local_screen_timer.start(2000)
+        logger.info("Started local screen frame updates")
+    
+    def stop_local_screen_updates(self):
+        """Stop local screen frame updates."""
+        if hasattr(self, 'local_screen_timer'):
+            self.local_screen_timer.stop()
+            logger.info("Stopped local screen frame updates")
+    
+    def update_local_screen_frame(self):
+        """Update local screen frame for self-view."""
+        if self.media_capture and self.media_capture.is_screen_sharing():
+            try:
+                # Get screen capture from media manager
+                screen_data = self.media_capture.screen_capture.capture_screen()
+                if screen_data and self.main_window:
+                    # Show own screen share in presentation box
+                    self.main_window.update_screen_frame(self.current_username, screen_data, 0, 0)
+                    logger.debug(f"Updated local screen frame: {len(screen_data)} bytes")
+            except Exception as e:
+                logger.error(f"Error updating local screen frame: {e}")
     
     def update_self_video_frame(self, frame_data: bytes):
         """Update self video frame in GUI."""
