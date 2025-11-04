@@ -513,22 +513,55 @@ class LANClient(QObject):
             # Determine stream type from stream_id
             stream_type = packet.stream_id & 0x0F  # Lower 4 bits
             
-            # For now, we can't easily identify the sender from UDP packets alone
-            # In a production system, you'd maintain a mapping of stream_id to username
-            # For this implementation, we'll use a placeholder sender identification
-            sender_username = f"user_{packet.stream_id >> 4}"  # Simple hash-based identification
+            # Find the sender username by matching stream_id
+            sender_username = self._identify_sender_from_stream_id(packet.stream_id)
             
-            if stream_type == 0x01:  # Audio stream
-                logger.debug(f"Received audio packet from {sender_username}: seq={packet.seq_num}, size={len(packet.payload)}")
-                self.audio_data_received.emit(sender_username, packet.payload)
-            elif stream_type == 0x02:  # Video stream
-                logger.debug(f"Received video packet from {sender_username}: seq={packet.seq_num}, size={len(packet.payload)}")
-                self.video_data_received.emit(sender_username, packet.payload)
+            if sender_username:
+                if stream_type == 0x01:  # Audio stream
+                    logger.debug(f"Received audio packet from {sender_username}: seq={packet.seq_num}, size={len(packet.payload)}")
+                    self.audio_data_received.emit(sender_username, packet.payload)
+                elif stream_type == 0x02:  # Video stream
+                    logger.debug(f"Received video packet from {sender_username}: seq={packet.seq_num}, size={len(packet.payload)}")
+                    self.video_data_received.emit(sender_username, packet.payload)
+                else:
+                    logger.warning(f"Unknown stream type: {stream_type}")
             else:
-                logger.warning(f"Unknown stream type: {stream_type}")
+                logger.debug(f"Could not identify sender for stream_id {packet.stream_id}")
                 
         except Exception as e:
             logger.error(f"Error processing UDP packet: {e}")
+    
+    def _identify_sender_from_stream_id(self, stream_id: int) -> str:
+        """
+        Identify the sender username from a stream ID.
+        
+        Args:
+            stream_id: The stream ID from the UDP packet
+            
+        Returns:
+            Username of the sender, or None if not found
+        """
+        # Extract stream type
+        stream_type_value = stream_id & 0x0F
+        
+        # Check all known users (including self) to find matching stream ID
+        all_users = list(self.session_state['user_list']) + [self.username]
+        
+        for username in all_users:
+            # Generate expected stream IDs for this user
+            from utils.network_proto import StreamType, generate_stream_id
+            
+            if stream_type_value == StreamType.AUDIO.value:
+                expected_stream_id = generate_stream_id(username, StreamType.AUDIO)
+            elif stream_type_value == StreamType.VIDEO.value:
+                expected_stream_id = generate_stream_id(username, StreamType.VIDEO)
+            else:
+                continue
+            
+            if expected_stream_id == stream_id:
+                return username
+        
+        return None
     
     def send_audio_packet(self, audio_data: bytes):
         """
