@@ -474,7 +474,7 @@ class LANCommunicatorApp(QStackedWidget):
     def on_screen_frame_received(self, username: str, frame_data: bytes, width: int, height: int):
         """Handle received screen frame."""
         if self.main_window:
-            self.main_window.update_screen_frame(frame_data, width, height)
+            self.main_window.update_screen_frame(username, frame_data, width, height)
     
     @Slot()
     def on_disconnected(self):
