@@ -414,12 +414,12 @@ class LANServer:
             )
             self._send_tcp_message(client_socket, response)
             
-            # Notify all clients of new user
+            # Notify other clients of new user (exclude the new user themselves)
             user_joined_msg = create_message(
                 MessageType.USER_JOINED,
                 username=username
             )
-            self._broadcast_message(user_joined_msg)
+            self._broadcast_message(user_joined_msg, exclude=username)
             
             # Send user list to new client
             user_list = [u for u in self.clients.keys()]

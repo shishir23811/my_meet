@@ -678,6 +678,9 @@ class LANCommunicatorApp(QStackedWidget):
             try:
                 self.media_capture.start_audio()
                 error_manager.update_component_status('audio', 'active', 'Audio capture started')
+                # Notify other users about audio state change
+                if self.main_window:
+                    self.main_window.notify_media_state_change('audio', True)
             except Exception as e:
                 logger.error(f"Failed to start audio: {e}")
                 error_manager.report_error(
@@ -695,6 +698,9 @@ class LANCommunicatorApp(QStackedWidget):
             try:
                 self.media_capture.stop_audio()
                 error_manager.update_component_status('audio', 'inactive', 'Audio capture stopped')
+                # Notify other users about audio state change
+                if self.main_window:
+                    self.main_window.notify_media_state_change('audio', False)
             except Exception as e:
                 logger.error(f"Failed to stop audio: {e}")
                 error_manager.report_error(
@@ -896,15 +902,39 @@ class LANCommunicatorApp(QStackedWidget):
     def closeEvent(self, event):
         """Handle application close."""
         logger.info("Application closing")
-        
-        # Clean up
-        if self.client:
-            self.client.disconnect()
-        
-        if self.server:
-            self.server.stop()
-        
+        self.cleanup()
         event.accept()
+    
+    def cleanup(self):
+        """Clean up resources before application exit."""
+        logger.info("Cleaning up application resources...")
+        
+        try:
+            # Stop media capture
+            if self.media_capture:
+                self.media_capture.cleanup()
+                self.media_capture = None
+            
+            # Disconnect client
+            if self.client:
+                self.client.disconnect()
+                self.client = None
+            
+            # Stop server
+            if self.server:
+                self.server.stop()
+                self.server = None
+                
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
+        
+        logger.info("Application cleanup complete")
+    
+    def _signal_handler(self, signum, frame):
+        """Handle termination signals (SIGINT, SIGTERM)."""
+        logger.info(f"Received signal {signum}, initiating cleanup...")
+        self.cleanup()
+        sys.exit(0)
 
 
 def main():
@@ -925,13 +955,29 @@ def main():
     main_window = LANCommunicatorApp()
     main_window.show()
     
+    # Handle application exit
+    app.aboutToQuit.connect(main_window.cleanup)
+    
+    # Handle force termination signals
+    import signal
+    signal.signal(signal.SIGINT, main_window._signal_handler)
+    signal.signal(signal.SIGTERM, main_window._signal_handler)
+    
     logger.info("Application window displayed")
     
-    # Run event loop
-    exit_code = app.exec()
-    
-    logger.info(f"Application exiting with code {exit_code}")
-    return exit_code
+    # Start the application
+    try:
+        exit_code = app.exec()
+        logger.info(f"Application exiting with code {exit_code}")
+        return exit_code
+    except KeyboardInterrupt:
+        logger.info("Application interrupted by user")
+        main_window.cleanup()
+        return 0
+    except Exception as e:
+        logger.error(f"Application error: {e}")
+        main_window.cleanup()
+        return 1
 
 
 if __name__ == "__main__":
