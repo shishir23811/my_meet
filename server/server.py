@@ -95,12 +95,30 @@ class LANServer:
         
         logger.info(f"Server initialized: session_id={session_id}, host={host_username}")
     
+    def _get_local_ip_address(self):
+        """Get the local IP address of this machine for LAN communication."""
+        try:
+            # Connect to a remote address to determine local IP
+            # This doesn't actually send data, just determines routing
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.connect(("8.8.8.8", 80))
+                local_ip = s.getsockname()[0]
+                logger.info(f"Server will bind to local IP address: {local_ip}")
+                return local_ip
+        except Exception as e:
+            logger.warning(f"Failed to detect local IP: {e}, falling back to 0.0.0.0")
+            # Fallback to bind all interfaces if unable to determine IP
+            return "0.0.0.0"
+    
     def _are_ports_available(self, tcp_port: int, udp_port: int) -> bool:
-        """Check if both TCP and UDP ports are available."""
+        """Check if both TCP and UDP ports are available on local IP."""
+        local_ip = self._get_local_ip_address()
+        
         # Test TCP port
         try:
             tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            tcp_sock.bind(('', tcp_port))
+            tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            tcp_sock.bind((local_ip, tcp_port))
             tcp_sock.close()
         except OSError:
             return False
@@ -108,7 +126,8 @@ class LANServer:
         # Test UDP port
         try:
             udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            udp_sock.bind(('', udp_port))
+            udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            udp_sock.bind((local_ip, udp_port))
             udp_sock.close()
             return True
         except OSError:
@@ -125,6 +144,8 @@ class LANServer:
         Returns:
             Available port number
         """
+        local_ip = self._get_local_ip_address()
+        
         for port in range(start_port, start_port + 10):
             try:
                 if port_type.upper() == "TCP":
@@ -134,16 +155,16 @@ class LANServer:
                     test_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                     test_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 
-                test_socket.bind(('0.0.0.0', port))
+                test_socket.bind((local_ip, port))
                 test_socket.close()
-                logger.info(f"Found available {port_type} port: {port}")
+                logger.info(f"Found available {port_type} port: {port} on {local_ip}")
                 return port
                 
             except OSError:
                 continue
         
         # If no port found in range, use original port and let it fail with proper error
-        logger.warning(f"No available {port_type} ports found in range {start_port}-{start_port + 9}")
+        logger.warning(f"No available {port_type} ports found in range {start_port}-{start_port + 9} on {local_ip}")
         return start_port
     
     def start(self):
@@ -162,18 +183,21 @@ class LANServer:
                 logger.info(f"Using alternative UDP port: {available_udp_port} (default {self.udp_port} was in use)")
                 self.udp_port = available_udp_port
             
+            # Get local IP address for LAN binding
+            local_ip = self._get_local_ip_address()
+            
             # Create and bind TCP socket
             self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.tcp_socket.bind(('0.0.0.0', self.tcp_port))
+            self.tcp_socket.bind((local_ip, self.tcp_port))
             self.tcp_socket.listen(10)
-            logger.info(f"TCP server listening on port {self.tcp_port}")
+            logger.info(f"TCP server listening on {local_ip}:{self.tcp_port}")
             
             # Create and bind UDP socket
             self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.udp_socket.bind(('0.0.0.0', self.udp_port))
-            logger.info(f"UDP server listening on port {self.udp_port}")
+            self.udp_socket.bind((local_ip, self.udp_port))
+            logger.info(f"UDP server listening on {local_ip}:{self.udp_port}")
             
             self.running = True
             

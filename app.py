@@ -58,15 +58,17 @@ class LANCommunicatorApp(QStackedWidget):
         logger.info("LANCommunicatorApp initialized")
     
     def get_local_ip_address(self):
-        """Get the local IP address of this machine."""
+        """Get the local IP address of this machine for LAN communication."""
         try:
             # Connect to a remote address to determine local IP
             # This doesn't actually send data, just determines routing
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
                 s.connect(("8.8.8.8", 80))
                 local_ip = s.getsockname()[0]
+                logger.info(f"Detected local IP address: {local_ip}")
                 return local_ip
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to detect local IP: {e}, falling back to localhost")
             # Fallback to localhost if unable to determine IP
             return "127.0.0.1"
     
@@ -108,10 +110,11 @@ class LANCommunicatorApp(QStackedWidget):
             if not self.server.running:
                 raise Exception("Server failed to start - check port availability")
             
-            # Connect as client to own server using actual server ports
+            # Connect as client to own server using local IP (not localhost)
+            # This ensures the host shows the correct IP to participants
             self.client = LANClient(
                 username, 
-                '127.0.0.1', 
+                self.server_address,  # Use actual LAN IP, not localhost
                 session_id,
                 tcp_port=self.server.tcp_port,
                 udp_port=self.server.udp_port

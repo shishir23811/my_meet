@@ -19,7 +19,6 @@ PROJECT_ROOT = Path(__file__).parent.parent
 # Ports 49152-65535 are typically unrestricted
 DEFAULT_TCP_PORT = 54321  # High port, less likely to be blocked
 DEFAULT_UDP_PORT = 54322  # High port, less likely to be blocked
-DEFAULT_HOST = "0.0.0.0"
 BUFFER_SIZE = 8192
 UDP_PACKET_SIZE = 1400  # Safe size for UDP to avoid fragmentation
 
@@ -56,7 +55,6 @@ class Config:
             "network": {
                 "tcp_port": DEFAULT_TCP_PORT,
                 "udp_port": DEFAULT_UDP_PORT,
-                "host": DEFAULT_HOST,
                 "buffer_size": BUFFER_SIZE
             },
             "media": {

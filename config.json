@@ -2,7 +2,6 @@
   "network": {
     "tcp_port": 54321,
     "udp_port": 54322,
-    "host": "0.0.0.0",
     "buffer_size": 8192
   },
   "media": {
@@ -15,6 +14,6 @@
   "ui": {
     "theme": "dark",
     "remember_me": true,
-    "last_username": "shishir1"
+    "last_username": "shishir"
   }
 }
