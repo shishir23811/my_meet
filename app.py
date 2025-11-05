@@ -310,18 +310,6 @@ class LANCommunicatorApp(QStackedWidget):
             logger.error(f"Failed to join session: {e}")
             QMessageBox.critical(self, "Connection Error", f"Failed to join session: {e}")
     
-    def _test_server_connectivity(self, server_address: str, port: int, timeout: float = 5.0) -> bool:
-        """Test if server is reachable on the specified port."""
-        try:
-            test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            test_socket.settimeout(timeout)
-            result = test_socket.connect_ex((server_address, port))
-            test_socket.close()
-            return result == 0
-        except Exception as e:
-            logger.debug(f"Connectivity test failed: {e}")
-            return False
-    
     def _connect_client_signals(self):
         """Connect client network signals to handlers."""
         self.client.auth_success.connect(self.on_auth_success)
