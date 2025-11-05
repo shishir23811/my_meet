@@ -158,9 +158,6 @@ class LANClient(QObject):
             heartbeat_thread.start()
             self.threads.append(heartbeat_thread)
             
-            # Send UDP hello packet to let server learn our UDP address
-            self._send_udp_hello()
-            
             logger.info("Client threads started")
             return True
             
@@ -272,6 +269,9 @@ class LANClient(QObject):
                 self.authenticated = True
                 self.auth_success.emit(self.username)
                 logger.info("Authentication successful")
+                
+                # Send UDP hello packet after authentication is complete
+                self._send_udp_hello()
             else:
                 reason = message.get('reason', 'Unknown error')
                 self.auth_failed.emit(reason)
@@ -518,15 +518,15 @@ class LANClient(QObject):
             
             if sender_username:
                 if stream_type == 0x01:  # Audio stream
-                    logger.debug(f"Received audio packet from {sender_username}: seq={packet.seq_num}, size={len(packet.payload)}")
+                    logger.info(f"Received audio packet from {sender_username}: seq={packet.seq_num}, size={len(packet.payload)}")
                     self.audio_data_received.emit(sender_username, packet.payload)
                 elif stream_type == 0x02:  # Video stream
-                    logger.debug(f"Received video packet from {sender_username}: seq={packet.seq_num}, size={len(packet.payload)}")
+                    logger.info(f"Received video packet from {sender_username}: seq={packet.seq_num}, size={len(packet.payload)}")
                     self.video_data_received.emit(sender_username, packet.payload)
                 else:
                     logger.warning(f"Unknown stream type: {stream_type}")
             else:
-                logger.debug(f"Could not identify sender for stream_id {packet.stream_id}")
+                logger.warning(f"Could not identify sender for stream_id {packet.stream_id}")
                 
         except Exception as e:
             logger.error(f"Error processing UDP packet: {e}")

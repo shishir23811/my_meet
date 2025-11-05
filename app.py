@@ -435,6 +435,10 @@ class LANCommunicatorApp(QStackedWidget):
         if self.media_capture:
             self.media_capture.process_received_audio(username, audio_data)
         
+        # Pass audio data to GUI for handling
+        if self.main_window:
+            self.main_window.handle_audio_data_received(username, audio_data)
+        
         # Detect if user is speaking based on audio data
         if self.main_window and audio_data:
             try:
