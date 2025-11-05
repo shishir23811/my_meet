@@ -1429,6 +1429,11 @@ class MainAppWindow(QMainWindow):
     
     def add_available_file(self, file_id: str, filename: str, size: int, uploader: str):
         """Add a file to the available files list."""
+        # Check if file already exists to prevent duplicates
+        if file_id in self.available_files:
+            logger.debug(f"File {filename} already exists in available files, skipping duplicate")
+            return
+        
         self.available_files[file_id] = {
             'filename': filename,
             'size': size,
@@ -1941,10 +1946,9 @@ Users: {len(self.connected_users) + 1}"""
             
             # Create formatted session info
             session_info = f"""Session ID: {self.session_id}
-Server IP: {self.server_address}
+Server Address: {self.server_address}
 TCP Port: {tcp_port}
-UDP Port: {udp_port}
-Role: {'Host' if self.is_host else 'Participant'}"""
+UDP Port: {udp_port}"""
             
             # Copy to clipboard
             clipboard = QGuiApplication.clipboard()

@@ -312,8 +312,9 @@ class FileTransferManager:
                 
                 # Assemble file from chunks
                 if hasattr(download_info, 'chunks'):
-                    # Create download file path
-                    download_path = Path.cwd() / f"download_{download_info.filename}"
+                    # Create download file path in temp_files directory
+                    TEMP_FILES_DIR.mkdir(exist_ok=True)
+                    download_path = TEMP_FILES_DIR / f"download_{download_info.filename}"
                     
                     # Write chunks to file
                     with open(download_path, 'wb') as f:

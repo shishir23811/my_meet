@@ -156,7 +156,7 @@ class HostJoinWindow(QWidget):
         layout.addWidget(self.host_session_id)
         
         # Server IP display
-        layout.addWidget(QLabel("Server IP Address:"))
+        layout.addWidget(QLabel("Server Address:"))
         self.server_ip_display = QLineEdit()
         self.server_ip_display.setText(self.server_ip)
         self.server_ip_display.setReadOnly(True)

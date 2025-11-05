@@ -645,9 +645,10 @@ class LANCommunicatorApp(QStackedWidget):
         """Handle file download from GUI."""
         if self.client:
             try:
-                # For now, download to current directory
-                import os
-                save_path = os.path.join(os.getcwd(), f"download_{file_id}")
+                # Download to temp_files directory
+                from utils.config import TEMP_FILES_DIR
+                TEMP_FILES_DIR.mkdir(exist_ok=True)
+                save_path = str(TEMP_FILES_DIR / f"download_{file_id}")
                 success = self.client.download_file(file_id, save_path)
                 if success:
                     logger.info(f"Started file download: {file_id}")
