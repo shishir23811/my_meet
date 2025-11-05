@@ -2510,7 +2510,9 @@ Role: {'Host' if self.is_host else 'Participant'}"""
     
     def update_user_video_frame(self, username: str, frame_data: bytes):
         """Update video frame for a specific user."""
+        logger.info(f"🎬 GUI: update_user_video_frame called for {username}, {len(frame_data)} bytes")
         if username in self.user_boxes:
+            logger.info(f"🎬 GUI: Found user box for {username}, calling set_video_frame")
             self.user_boxes[username].set_video_frame(frame_data)
         else:
             logger.warning(f"No user box found for {username}")
@@ -2532,6 +2534,7 @@ Role: {'Host' if self.is_host else 'Participant'}"""
     
     def update_video_frame(self, username: str, video_data: bytes):
         """Handle received video frame (called from app.py)."""
+        logger.info(f"🎬 GUI: update_video_frame called for {username}, {len(video_data)} bytes")
         self.update_user_video_frame(username, video_data)
     
     def update_user_audio_state(self, username: str, is_speaking: bool):
@@ -2542,6 +2545,7 @@ Role: {'Host' if self.is_host else 'Participant'}"""
     
     def handle_audio_data_received(self, username: str, audio_data: bytes):
         """Handle received audio data and detect speaking."""
+        logger.info(f"🎵 GUI: handle_audio_data_received called for {username}, {len(audio_data)} bytes")
         # For now, we'll assume any audio data means the user is speaking
         # In a more sophisticated implementation, we would analyze the audio level
         if username in self.user_boxes:

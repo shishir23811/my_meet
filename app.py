@@ -312,22 +312,23 @@ class LANCommunicatorApp(QStackedWidget):
     
     def _connect_client_signals(self):
         """Connect client network signals to handlers."""
-        self.client.auth_success.connect(self.on_auth_success)
-        self.client.auth_failed.connect(self.on_auth_failed)
-        self.client.chat_message_received.connect(self.on_chat_message_received)
-        self.client.user_joined.connect(self.on_user_joined)
-        self.client.user_left.connect(self.on_user_left)
-        self.client.user_list_received.connect(self.on_user_list_received)
-        self.client.file_offer_received.connect(self.on_file_offer_received)
-        self.client.audio_data_received.connect(self.on_audio_data_received)
-        self.client.video_data_received.connect(self.on_video_data_received)
-        self.client.screen_frame_received.connect(self.on_screen_frame_received)
-        self.client.disconnected.connect(self.on_disconnected)
-        self.client.error_occurred.connect(self.on_client_error)
+        # Use QueuedConnection for all signals since they're emitted from worker threads
+        self.client.auth_success.connect(self.on_auth_success, Qt.QueuedConnection)
+        self.client.auth_failed.connect(self.on_auth_failed, Qt.QueuedConnection)
+        self.client.chat_message_received.connect(self.on_chat_message_received, Qt.QueuedConnection)
+        self.client.user_joined.connect(self.on_user_joined, Qt.QueuedConnection)
+        self.client.user_left.connect(self.on_user_left, Qt.QueuedConnection)
+        self.client.user_list_received.connect(self.on_user_list_received, Qt.QueuedConnection)
+        self.client.file_offer_received.connect(self.on_file_offer_received, Qt.QueuedConnection)
+        self.client.audio_data_received.connect(self.on_audio_data_received, Qt.QueuedConnection)
+        self.client.video_data_received.connect(self.on_video_data_received, Qt.QueuedConnection)
+        self.client.screen_frame_received.connect(self.on_screen_frame_received, Qt.QueuedConnection)
+        self.client.disconnected.connect(self.on_disconnected, Qt.QueuedConnection)
+        self.client.error_occurred.connect(self.on_client_error, Qt.QueuedConnection)
         
         # Reconnection signals
-        self.client.reconnection_started.connect(self.on_reconnection_started)
-        self.client.reconnection_failed.connect(self.on_reconnection_failed)
+        self.client.reconnection_started.connect(self.on_reconnection_started, Qt.QueuedConnection)
+        self.client.reconnection_failed.connect(self.on_reconnection_failed, Qt.QueuedConnection)
         self.client.reconnection_succeeded.connect(self.on_reconnection_succeeded)
         self.client.manual_retry_required.connect(self.on_manual_retry_required)
         
@@ -432,6 +433,7 @@ class LANCommunicatorApp(QStackedWidget):
     @Slot(str, bytes)
     def on_audio_data_received(self, username: str, audio_data: bytes):
         """Handle received audio data and detect speaking."""
+        logger.info(f"🎵 APP: on_audio_data_received called for {username}, {len(audio_data)} bytes")
         if self.media_capture:
             self.media_capture.process_received_audio(username, audio_data)
         
@@ -462,6 +464,7 @@ class LANCommunicatorApp(QStackedWidget):
     @Slot(str, bytes)
     def on_video_data_received(self, username: str, video_data: bytes):
         """Handle received video data."""
+        logger.info(f"🎬 APP: on_video_data_received called for {username}, {len(video_data)} bytes")
         if self.main_window:
             self.main_window.update_video_frame(username, video_data)
     
