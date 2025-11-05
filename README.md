@@ -1,306 +1,328 @@
-# LAN Communication Application
+# LAN Communicator
 
-A robust, standalone, LAN-only multi-user communication application built with PySide6 and Python sockets. Provides video conferencing, audio conferencing, screen sharing, group chat, and file sharing capabilities without requiring internet connectivity.
+A comprehensive real-time communication application for local area networks, featuring video calls, voice chat, screen sharing, and file transfer capabilities.
 
-## Features
+## Installation & Setup
 
-- **🔐 User Authentication**: Local profile management with sign in/sign up
-- **👥 Multi-user Sessions**: Host or join sessions with unique session IDs
-- **💬 Group Chat**: Real-time text messaging with broadcast/multicast/unicast modes
-- **📁 File Sharing**: Upload and download files between users
-- **🎤 Audio Conferencing**: UDP-based audio streaming (stub provided)
-- **📹 Video Conferencing**: UDP-based video streaming (stub provided)
-- **🖥️ Screen Sharing**: TCP-based screen frame transmission (stub provided)
-- **📡 Communication Modes**:
-  - **Broadcast**: Send to all users
-  - **Multicast**: Send to selected users
-  - **Unicast**: Send to one specific user
-
-## Platform Support
-
-| Platform | Status | Setup Guide |
-|----------|--------|-------------|
-| **Windows 10/11** | ✅ Fully Supported | Built-in instructions |
-| **Ubuntu 20.04+** | ✅ Fully Supported | See `UBUNTU_SETUP.md` |
-| **Other Linux** | ✅ Should Work | Adapt Ubuntu instructions |
-| **macOS** | ⚠️ Untested | Should work with minor adjustments |
-
-**Cross-Platform Features:**
-- ✅ Windows ↔ Ubuntu communication
-- ✅ All media features work on both platforms  
-- ✅ Same user interface and functionality
-- ✅ Network compatibility between different OS
-- ✅ **Firewall-free operation** - no administrator rights needed
-- ✅ **Smart port selection** - automatically finds available ports
-
-## Project Structure
-
-```
-/
-├── app.py                 # Main application launcher
-├── profiles.json          # Local user profiles
-├── requirements.txt       # Python dependencies
-├── README.md             # This file
-├── ARCHITECTURE.md       # Architecture documentation
-├── network_protocol.md   # Network protocol specification
-├── client/               # Client networking components
-│   ├── __init__.py
-│   └── client.py         # TCP/UDP client implementation
-├── server/               # Server networking components
-│   ├── __init__.py
-│   └── server.py         # TCP/UDP server implementation
-├── gui/                  # PySide6 GUI windows
-│   ├── __init__.py
-│   ├── login.py          # Login/signup window
-│   ├── hostjoin.py       # Host/join session window
-│   └── mainapp.py        # Main communication window
-└── utils/                # Utilities and helpers
-    ├── __init__.py
-    ├── logger.py         # Logging configuration
-    ├── config.py         # Configuration management
-    ├── network_proto.py  # Network protocol definitions
-    └── profiles.py       # Profile management
-```
-
-## Installation
-
-### Prerequisites
-
-- Python 3.11 or higher
-- pip (Python package manager)
-
-### Setup
-
-1. **Clone or download this repository**
-
-2. **Create a virtual environment** (recommended):
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-## Usage
-
-### Running the Application
-
-**1. No Setup Required!**:
+### 1. Clone the Repository
 ```bash
-# The application now uses high-numbered ports (54321, 54322)
-# that typically don't require firewall configuration!
-# Just run the application - no administrator rights needed.
+git clone <repository-url>
+cd my_meet
 ```
 
-**Optional: Manual Firewall Setup (if needed)**:
+### 2. Create Virtual Environment (Recommended)
 ```bash
-# Windows (run as Administrator):
+# Windows
+python -m venv venv
+venv\\Scripts\\activate
+
+# macOS/Linux
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 3. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Configure Firewall (Windows)
+For Windows users, run the firewall setup script as administrator:
+```bash
+# PowerShell (as Administrator)
+.\\setup_firewall.ps1
+
+# Or Command Prompt (as Administrator)
 setup_firewall.bat
-
-# Ubuntu/Linux:
-./setup_firewall_ubuntu.sh
 ```
 
-**2. Start the application**:
+## 🎮 How to Run
+
+### Starting the Application
 ```bash
 python app.py
 ```
 
-### 🔥 Connection Issues?
+### Setting Up a Session
 
-If you get connection timeout errors when joining from another computer:
+#### Option 1: Host a Session
+1. **Launch the application** and enter your username
+2. **Click "Host a Session"**
+3. **Generate a Session ID** using the "Generate Session ID" button
+4. **Share the session information** with other participants:
+   - Session ID (8-character code)
+   - Your IP address
+   - TCP and UDP ports (if not using defaults)
+5. **Click "Start Hosting"** to begin the session
+6. **Wait for participants** to join using your session information
 
-1. **Try firewall-free approach**: See `FIREWALL_FREE_SETUP.md` (recommended)
-2. **Test connectivity**: `python test_connection.py <host_ip>`
-3. **Manual firewall setup** (if needed): 
-   - Windows: Run `setup_firewall.bat` as Administrator
-   - Ubuntu: Run `./setup_firewall_ubuntu.sh`
-4. **See detailed guides**: 
-   - `FIREWALL_FREE_SETUP.md` (no admin rights needed)
-   - `NETWORK_TROUBLESHOOTING.md` (general)
-   - `UBUNTU_SETUP.md` (Ubuntu-specific)
+#### Option 2: Join a Session
+1. **Launch the application** and enter your username
+2. **Click "Join a Session"**
+3. **Enter the session details** provided by the host:
+   - Session ID
+   - Host's IP address
+   - TCP and UDP ports (if not defaults)
+4. **Click "Join Session"** to connect
+5. **Start communicating** once connected
 
-### Workflow
+### Using the Features
 
-1. **Login/Sign Up**:
-   - Create a new account or sign in with existing credentials
-   - Sample users in `profiles.json`:
-     - Username: `alice`, Password: `hello` (hash: `2cf24dba...`)
-     - Username: `bob`, Password: `world` (hash: `81b637d8...`)
+#### Video & Audio
+- **Toggle microphone**: Click the microphone button in the bottom control bar
+- **Toggle camera**: Click the camera button in the bottom control bar
+- **Speaking indicators**: Green borders appear around users who are speaking
+- **Audio controls**: Mute/unmute yourself or adjust audio settings
 
-2. **Host a Session**:
-   - Click "Host a Session"
-   - Generate a session ID
-   - Share the session ID and your IP address with others
-   - Click "Start Hosting"
+#### Screen Sharing
+- **Start screen sharing**: Click the screen share button in the control bar
+- **Stop screen sharing**: Click the screen share button again to stop
+- **View shared screens**: Shared screens appear in the main video grid
 
-3. **Join a Session**:
-   - Click "Join a Session"
-   - Enter the session ID provided by the host
-   - Enter the host's IP address (use `127.0.0.1` for localhost testing)
-   - Click "Join Session"
+#### Chat
+- **Open chat**: Click the chat button (💬) in the bottom right
+- **Send messages**: Type in the chat input and press Enter or click "Send"
+- **View history**: Scroll through the chat history in the sidebar
 
-4. **Communicate**:
-   - **Chat**: Type messages and select communication mode
-   - **Files**: Upload files and download shared files
-   - **Audio/Video**: Start/stop audio and video streams
-   - **Screen Share**: Share your screen with others
+#### File Transfer
+- **Share files**: 
+  1. Click the chat button to open the sidebar
+  2. Switch to the "Files" tab
+  3. Click "Browse Files..." to select a file
+  4. Click "Share File" to upload
+- **Download files**: 
+  1. View available files in the Files tab
+  2. Double-click a file or select and click "Download Selected"
+  3. Choose download location
 
-### Testing Locally
+#### User Management
+- **View participants**: Click the users button (👥) to see all participants
+- **User status**: See who's online and their current media status
+- **Leave session**: Click "Leave Session" or close the application
 
-To test with multiple users on the same machine:
+## 🔧 Configuration
 
-1. **Terminal 1** - Start as host:
-   ```bash
-   python app.py
-   # Login as 'alice'
-   # Host session with ID 'TEST123'
-   ```
+### Network Settings
+The application uses the following default ports:
+- **TCP Port**: 54321 (for control messages)
+- **UDP Port**: 54322 (for media streams)
 
-2. **Terminal 2** - Join as client:
-   ```bash
-   python app.py
-   # Login as 'bob'
-   # Join session 'TEST123' at '127.0.0.1'
-   ```
-
-3. **Send messages** between alice and bob
-
-### Network Configuration
-
-Default ports (configurable in `utils/config.py`):
-- **TCP**: 5555 (control channel for chat, files, commands)
-- **UDP**: 5556 (media streams for audio/video)
-
-## Configuration
-
-### User Profiles
-
-Profiles are stored in `profiles.json` at the project root:
-
+These can be configured in `config.json`:
 ```json
 {
-  "users": {
-    "username": {
-      "username": "username",
-      "display_name": "Display Name",
-      "password_hash": "sha256_hash_of_password",
-      "created_at": "2025-01-15T10:00:00",
-      "last_login": "2025-01-20T14:30:00"
-    }
+  "network": {
+    "tcp_port": 54321,
+    "udp_port": 54322,
+    "buffer_size": 65536
+  },
+  "media": {
+    "video_quality": "medium",
+    "audio_sample_rate": 44100
   }
 }
 ```
 
-### Network Settings
+### User Profiles
+User profiles are stored in `profiles.json` and include:
+- Username preferences
+- Last used settings
+- Session history (optional)
 
-Edit `utils/config.py` to change:
-- TCP/UDP ports
-- Buffer sizes
-- Video/audio settings
-- File transfer limits
+## Features
 
-## Building Executables
+### Video & Audio Communication
+- **High-quality video calls** with real-time video streaming
+- **Crystal-clear voice chat** with speaking indicators
+- **Microphone and camera controls** with mute/unmute functionality
+- **Speaking detection** with visual indicators (green borders)
+- **Audio strength monitoring** for optimal voice quality
 
-Create standalone executables using PyInstaller:
+### Screen Sharing
+- **Full desktop screen sharing** for presentations and collaboration
+- **Real-time screen capture** with optimized performance
+- **Easy start/stop controls** for screen sharing sessions
 
-```bash
-# Windows
-pyinstaller --onefile --windowed --name="LAN Communicator" app.py
+### Real-time Chat
+- **Instant messaging** with all participants
+- **Message history** during the session
+- **User-friendly chat interface** with sidebar design
 
-# Linux
-pyinstaller --onefile --windowed --name="LAN Communicator" app.py
+### File Transfer
+- **Secure file sharing** between participants
+- **Drag-and-drop file upload** support
+- **File download** with progress tracking
+- **Multiple file format support**
+
+### User Management
+- **Multi-user sessions** with up to multiple participants
+- **User presence indicators** showing who's online
+- **Dynamic user grid** that adapts to the number of participants
+- **User authentication** with session-based access
+
+### Advanced Features
+- **Session hosting and joining** with unique session IDs
+- **Automatic network discovery** and configuration
+- **Reconnection handling** for network interruptions
+- **Error management** with user-friendly notifications
+- **Responsive UI** that adapts to different screen sizes
+
+## Technical Implementation
+
+### Architecture
+- **Client-Server Architecture**: Centralized server for session management
+- **Multi-threaded Design**: Separate threads for GUI, networking, and media processing
+- **Qt-based GUI**: Modern, responsive user interface using PySide6
+- **UDP Media Streaming**: Low-latency audio/video transmission
+- **TCP Control Channel**: Reliable messaging for chat and file metadata
+
+### Core Components
+
+#### 1. **Application Layer** (`app.py`)
+- Main application controller managing window transitions
+- Integration between GUI and networking components
+- Session lifecycle management
+
+#### 2. **GUI Components** (`gui/`)
+- **Login Window**: User authentication and profile management
+- **Host/Join Window**: Session creation and connection interface
+- **Main App Window**: Primary communication interface with all features
+- **Responsive Design**: Adaptive layouts for different screen sizes
+
+#### 3. **Client Networking** (`client/`)
+- **LANClient**: Main client networking class
+- **MediaCaptureManager**: Audio/video capture and processing
+- **FileTransferManager**: File upload/download handling
+- **Reconnection Logic**: Automatic reconnection on network issues
+
+#### 4. **Server Networking** (`server/`)
+- **LANServer**: Multi-client server for session management
+- **Message Routing**: Efficient message distribution to clients
+- **Media Relay**: UDP stream forwarding between participants
+- **Session Management**: User presence and session state
+
+#### 5. **Utilities** (`utils/`)
+- **Network Protocol**: Message serialization and packet handling
+- **Configuration Management**: Settings and preferences
+- **Logging System**: Comprehensive logging for debugging
+- **Error Management**: Centralized error handling and reporting
+
+### Media Processing
+- **OpenCV**: Video capture and frame processing
+- **SoundDevice**: Audio capture and playback
+- **MSS**: Screen capture for screen sharing
+- **NumPy**: Audio processing and analysis
+
+### Network Protocol
+- **TCP Control Channel**: JSON-based messaging for reliability
+- **UDP Media Streams**: Binary packet streaming for low latency
+- **Message Types**: Authentication, chat, file transfer, media control
+- **Stream Identification**: Unique stream IDs for media routing
+
+## Requirements
+
+### System Requirements
+- **Operating System**: Windows 10/11
+- **Python**: 3.8 or higher
+- **Memory**: 4GB RAM minimum, 8GB recommended
+- **Network**: Local Area Network (LAN) connectivity
+- **Hardware**: Webcam and microphone for full functionality
+
+### Python Dependencies
 ```
-
-The executable will be in the `dist/` directory.
-
-## Architecture
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation including:
-- System design
-- Component interactions
-- Sequence diagrams
-- Threading model
-
-## Network Protocol
-
-See [network_protocol.md](network_protocol.md) for detailed protocol specification including:
-- TCP control message formats
-- UDP packet structure
-- Message flow diagrams
-- Authentication handshake
-
-## Development
-
-### Adding New Features
-
-1. **Media Codecs**: Replace stubs in `client/client.py` (MediaCaptureStub) with real implementations:
-   - Audio: Use `sounddevice` or `pyaudio` for capture, Opus for encoding
-   - Video: Use `opencv-python` for capture, H.264 for encoding
-
-2. **File Transfer**: Implement chunked file transfer in server/client
-
-3. **Screen Sharing**: Implement screen capture and frame transmission
-
-### Logging
-
-Logs are stored in `logs/app_YYYYMMDD.log`. Configure log level in `utils/logger.py`.
-
-### Testing
-
-Run the server standalone:
-```bash
-python server/server.py SESSION_ID HOST_USERNAME
+PySide6>=6.5.0          # GUI framework
+opencv-python>=4.8.0    # Video processing
+numpy>=1.24.0           # Numerical operations
+sounddevice>=0.4.6      # Audio capture/playback
+mss>=9.0.0              # Screen capture
+pyinstaller>=5.13.0     # Executable creation (optional)
 ```
 
 ## Troubleshooting
 
-### Connection Issues
+### Common Issues
 
-- **Firewall**: Ensure ports 5555 (TCP) and 5556 (UDP) are open
-- **IP Address**: Use `ipconfig` (Windows) or `ifconfig` (Linux) to find your local IP
-- **Same Machine**: Use `127.0.0.1` or `localhost`
+#### Connection Problems
+- **Cannot connect to host**: 
+  - Verify the IP address and ports are correct
+  - Check firewall settings on both host and client
+  - Ensure both devices are on the same network
 
-### Authentication Failures
+#### Audio/Video Issues
+- **No audio/video**: 
+  - Check device permissions for camera and microphone
+  - Verify devices are not being used by other applications
+  - Restart the application if devices were connected after launch
 
-- Check `profiles.json` exists and is valid JSON
-- Passwords are hashed with SHA-256
-- Create new users via Sign Up tab
+#### Performance Issues
+- **Lag or poor quality**: 
+  - Close unnecessary applications
+  - Check network bandwidth
+  - Reduce video quality in settings
 
-### Port Already in Use
+#### Firewall Issues
+- **Windows Firewall blocking**: Run the firewall setup scripts as administrator
+- **Third-party firewalls**: Add exceptions for the application and ports 54321-54322
 
-- Change ports in `utils/config.py`
-- Kill existing processes using the ports
+### Logs and Debugging
+- **Log files**: Check the `logs/` directory for detailed error information
+- **Verbose logging**: Enable debug logging in the configuration
+- **Network diagnostics**: Use built-in connection testing features
+
+## Development
+
+### Project Structure
+```
+my_meet/
+├── app.py                 # Main application entry point
+├── requirements.txt       # Python dependencies
+├── config.json           # Application configuration
+├── profiles.json         # User profiles
+├── gui/                  # User interface components
+│   ├── login.py          # Login window
+│   ├── hostjoin.py       # Host/Join session window
+│   ├── mainapp.py        # Main application window
+│   └── icons.py          # UI icons and graphics
+├── client/               # Client networking
+│   ├── client.py         # Main client class
+│   └── media_capture.py  # Media capture management
+├── server/               # Server networking
+│   └── server.py         # Multi-client server
+├── utils/                # Utilities and helpers
+│   ├── config.py         # Configuration management
+│   ├── logger.py         # Logging system
+│   ├── error_manager.py  # Error handling
+│   ├── network_proto.py  # Network protocol
+│   └── file_transfer.py  # File transfer utilities
+└── logs/                 # Application logs
+```
+
+### Building Executable
+To create a standalone executable:
+```bash
+pip install pyinstaller
+pyinstaller --onefile --windowed app.py
+```
 
 ## License
 
-This is a demonstration/educational project. Use at your own risk.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Credits
+## Contributing
 
-Developed as a LAN-only communication system using:
-- PySide6 for GUI
-- Python sockets for networking
-- Threading for concurrency
-
-## Roadmap
-
-Future enhancements (marked as TODO in code):
-- ✅ Basic chat and user management
-- ⏳ Real audio/video capture and encoding
-- ⏳ Audio mixing on server side
-- ⏳ Bandwidth management
-- ⏳ End-to-end encryption
-- ⏳ Persistent file storage
-- ⏳ Session recording
-- ⏳ Mobile client support
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## Support
 
-For issues or questions:
-1. Check logs in `logs/` directory
-2. Review ARCHITECTURE.md and network_protocol.md
-3. Inspect code comments for TODO items and implementation notes
+For issues, questions, or contributions:
+1. Check the logs in the `logs/` directory for error details
+2. Review this README for troubleshooting steps
+3. Open an issue on the project repository
+4. Provide detailed information about your system and the issue
+
+---
+
+**LAN Communicator** - Bringing people together through seamless local network communication!

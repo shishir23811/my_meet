@@ -523,8 +523,9 @@ class MainAppWindow(QMainWindow):
         sidebar.setFixedWidth(350)  # Fixed width sidebar
         sidebar.setStyleSheet("""
             QWidget {
-                background-color: #e9ecef;
-                border-left: 1px solid #ddd;
+                background-color: #4a4a4a;
+                border-left: 1px solid #333;
+                color: white;
             }
         """)
         
@@ -537,8 +538,9 @@ class MainAppWindow(QMainWindow):
         header.setFixedHeight(40)
         header.setStyleSheet("""
             QWidget {
-                background-color: #dee2e6;
-                border-bottom: 1px solid #ddd;
+                background-color: #3a3a3a;
+                border-bottom: 1px solid #555;
+                color: white;
             }
         """)
         header_layout = QHBoxLayout(header)
@@ -556,12 +558,12 @@ class MainAppWindow(QMainWindow):
                 border: none;
                 font-size: 16px;
                 font-weight: bold;
-                color: #495057;
+                color: white;
                 border-radius: 15px;
             }
             QPushButton:hover {
-                background-color: #ced4da;
-                color: #212529;
+                background-color: #555;
+                color: white;
             }
         """)
         close_btn.clicked.connect(self.hide_chat_sidebar)
@@ -574,19 +576,19 @@ class MainAppWindow(QMainWindow):
         self.sidebar_tabs.setStyleSheet("""
             QTabWidget::pane {
                 border: none;
-                background-color: #e9ecef;
+                background-color: #4a4a4a;
             }
             QTabBar::tab {
-                background-color: #ced4da;
-                color: #495057;
+                background-color: #5a5a5a;
+                color: white;
                 padding: 8px 16px;
                 margin-right: 2px;
                 border-top-left-radius: 4px;
                 border-top-right-radius: 4px;
             }
             QTabBar::tab:selected {
-                background-color: #f8f9fa;
-                color: #212529;
+                background-color: #3a3a3a;
+                color: white;
                 border-bottom: 2px solid #007bff;
             }
         """)
@@ -609,8 +611,9 @@ class MainAppWindow(QMainWindow):
         sidebar.setFixedWidth(300)  # Fixed width sidebar
         sidebar.setStyleSheet("""
             QWidget {
-                background-color: #e9ecef;
-                border-left: 1px solid #ddd;
+                background-color: #4a4a4a;
+                border-left: 1px solid #333;
+                color: white;
             }
         """)
         
@@ -623,8 +626,9 @@ class MainAppWindow(QMainWindow):
         header.setFixedHeight(40)
         header.setStyleSheet("""
             QWidget {
-                background-color: #dee2e6;
-                border-bottom: 1px solid #ddd;
+                background-color: #3a3a3a;
+                border-bottom: 1px solid #555;
+                color: white;
             }
         """)
         header_layout = QHBoxLayout(header)
@@ -642,12 +646,12 @@ class MainAppWindow(QMainWindow):
                 border: none;
                 font-size: 16px;
                 font-weight: bold;
-                color: #495057;
+                color: white;
                 border-radius: 15px;
             }
             QPushButton:hover {
-                background-color: #ced4da;
-                color: #212529;
+                background-color: #555;
+                color: white;
             }
         """)
         close_btn.clicked.connect(self.hide_users_sidebar)
@@ -677,24 +681,24 @@ class MainAppWindow(QMainWindow):
         self.users_list_widget = QListWidget()
         self.users_list_widget.setStyleSheet("""
             QListWidget {
-                background-color: #f8f9fa;
-                border: 1px solid #ced4da;
+                background-color: #2a2a2a;
+                border: 1px solid #555;
                 border-radius: 4px;
                 padding: 5px;
             }
             QListWidget::item {
                 padding: 8px;
-                border-bottom: 1px solid #dee2e6;
+                border-bottom: 1px solid #555;
                 border-radius: 4px;
                 margin: 2px 0;
-                color: #212529;
+                color: white;
             }
             QListWidget::item:hover {
-                background-color: #e9ecef;
+                background-color: #3a3a3a;
             }
             QListWidget::item:selected {
-                background-color: #e3f2fd;
-                color: #1976d2;
+                background-color: #007bff;
+                color: white;
             }
         """)
         users_layout.addWidget(self.users_list_widget)
@@ -716,11 +720,12 @@ class MainAppWindow(QMainWindow):
         self.chat_display.setReadOnly(True)
         self.chat_display.setStyleSheet("""
             QTextEdit {
-                background-color: #fff;
-                border: 1px solid #ddd;
+                background-color: #2a2a2a;
+                border: 1px solid #555;
                 border-radius: 4px;
                 padding: 10px;
                 font-size: 13px;
+                color: white;
             }
         """)
         layout.addWidget(self.chat_display)
@@ -734,10 +739,12 @@ class MainAppWindow(QMainWindow):
         self.chat_input.setMinimumHeight(35)
         self.chat_input.setStyleSheet("""
             QLineEdit {
-                border: 1px solid #ddd;
+                border: 1px solid #555;
                 border-radius: 4px;
                 padding: 8px;
                 font-size: 13px;
+                background-color: #2a2a2a;
+                color: white;
             }
         """)
         input_layout.addWidget(self.chat_input)
@@ -775,21 +782,23 @@ class MainAppWindow(QMainWindow):
         upload_group.setStyleSheet("""
             QGroupBox {
                 font-weight: bold;
-                border: 1px solid #ddd;
+                border: 1px solid #555;
                 border-radius: 4px;
                 margin-top: 10px;
                 padding-top: 10px;
+                color: white;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 10px;
                 padding: 0 5px 0 5px;
+                color: white;
             }
         """)
         upload_layout = QVBoxLayout(upload_group)
         
         self.selected_file_label = QLabel("No file selected")
-        self.selected_file_label.setStyleSheet("color: gray; font-size: 12px;")
+        self.selected_file_label.setStyleSheet("color: #ccc; font-size: 12px;")
         upload_layout.addWidget(self.selected_file_label)
         
         browse_btn = QPushButton("Browse Files...")
@@ -829,23 +838,24 @@ class MainAppWindow(QMainWindow):
         
         # Available files list
         files_label = QLabel("Shared Files")
-        files_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        files_label.setStyleSheet("font-weight: bold; margin-top: 10px; color: white;")
         layout.addWidget(files_label)
         
         self.files_list_widget = QListWidget()
         self.files_list_widget.itemDoubleClicked.connect(self.handle_download_file)
         self.files_list_widget.setStyleSheet("""
             QListWidget {
-                border: 1px solid #ddd;
+                border: 1px solid #555;
                 border-radius: 4px;
-                background-color: #fff;
+                background-color: #2a2a2a;
+                color: white;
             }
             QListWidget::item {
                 padding: 8px;
-                border-bottom: 1px solid #eee;
+                border-bottom: 1px solid #555;
             }
             QListWidget::item:hover {
-                background-color: #f8f9fa;
+                background-color: #3a3a3a;
             }
         """)
         layout.addWidget(self.files_list_widget)
@@ -1838,7 +1848,7 @@ class MainAppWindow(QMainWindow):
         session_label.setStyleSheet("font-weight: bold; color: #333;")
         layout.addWidget(session_label)
         
-        server_label = QLabel(f"Server IP: {self.server_address}")
+        server_label = QLabel(f"Server Address: {self.server_address}")
         server_label.setStyleSheet("color: #666;")
         layout.addWidget(server_label)
         

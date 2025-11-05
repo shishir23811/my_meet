@@ -42,7 +42,7 @@ class HostJoinWindow(QWidget):
         """Set up the user interface."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(40, 40, 40, 40)
-        layout.setSpacing(20)
+        layout.setSpacing(10)
         
         # Title
         title = QLabel(f"Welcome, {self.username}!")
@@ -124,19 +124,19 @@ class HostJoinWindow(QWidget):
         layout = QVBoxLayout(page)
         layout.setSpacing(15)
         
-        # Instructions
-        instructions = QLabel("Host a New Session")
-        instructions_font = QFont()
-        instructions_font.setPointSize(16)
-        instructions_font.setBold(True)
-        instructions.setFont(instructions_font)
-        layout.addWidget(instructions)
+        # # Instructions
+        # instructions = QLabel("Host a New Session")
+        # instructions_font = QFont()
+        # instructions_font.setPointSize(16)
+        # instructions_font.setBold(True)
+        # instructions.setFont(instructions_font)
+        # layout.addWidget(instructions)
         
-        info = QLabel("Generate a session ID to share with others.\n"
-                     "Your computer will act as the server.")
-        info.setWordWrap(True)
-        info.setStyleSheet("color: gray;")
-        layout.addWidget(info)
+        # info = QLabel("Generate a session ID to share with others.\n"
+        #              "Your computer will act as the server.")
+        # info.setWordWrap(True)
+        # info.setStyleSheet("color: gray;")
+        # layout.addWidget(info)
         
         layout.addSpacing(20)
         
@@ -150,7 +150,7 @@ class HostJoinWindow(QWidget):
                 font-size: 18px;
                 font-weight: bold;
                 text-align: center;
-                background-color: #f0f0f0;
+                background-color: #2d2d2d;
             }
         """)
         layout.addWidget(self.host_session_id)
@@ -166,7 +166,7 @@ class HostJoinWindow(QWidget):
                 font-size: 14px;
                 font-weight: bold;
                 text-align: center;
-                background-color: #f0f0f0;
+                background-color: #2d2d2d;
             }
         """)
         layout.addWidget(self.server_ip_display)
@@ -182,7 +182,7 @@ class HostJoinWindow(QWidget):
                 font-size: 14px;
                 font-weight: bold;
                 text-align: center;
-                background-color: #e8f4f8;
+                background-color: #2d2d2d;
             }
         """)
         layout.addWidget(self.port_display)
@@ -259,7 +259,7 @@ class HostJoinWindow(QWidget):
         """Create the join session page."""
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setSpacing(15)
+        layout.setSpacing(10)
         
         # Instructions
         instructions = QLabel("Join an Existing Session")
@@ -274,7 +274,7 @@ class HostJoinWindow(QWidget):
         info.setStyleSheet("color: gray;")
         layout.addWidget(info)
         
-        layout.addSpacing(20)
+        layout.addSpacing(10)
         
         # Session ID input
         layout.addWidget(QLabel("Session ID:"))
@@ -315,11 +315,11 @@ class HostJoinWindow(QWidget):
         
         layout.addLayout(port_layout)
         
-        # Note about ports and localhost
-        note = QLabel("⚠️ IMPORTANT: Enter the TCP and UDP ports from the session info shared by the host.\nLeave empty only if host is using default ports (54321, 54322).")
-        note.setStyleSheet("color: #d63031; font-size: 11px; font-weight: bold;")
-        note.setWordWrap(True)
-        layout.addWidget(note)
+        # # Note about ports and localhost
+        # note = QLabel("⚠️ IMPORTANT: Enter the TCP and UDP ports from the session info shared by the host.\nLeave empty only if host is using default ports (54321, 54322).")
+        # note.setStyleSheet("color: #d63031; font-size: 11px; font-weight: bold;")
+        # note.setWordWrap(True)
+        # layout.addWidget(note)
         
         # Paste session info button
         paste_btn = QPushButton("📋 Paste Session Info from Clipboard")
@@ -339,7 +339,7 @@ class HostJoinWindow(QWidget):
         """)
         layout.addWidget(paste_btn)
         
-        layout.addSpacing(20)
+        layout.addSpacing(10)
         
         # Join button
         join_btn = QPushButton("Join Session")
@@ -363,8 +363,6 @@ class HostJoinWindow(QWidget):
         back_btn = QPushButton("← Back")
         back_btn.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(0))
         layout.addWidget(back_btn)
-        
-        layout.addStretch()
         
         return page
     
