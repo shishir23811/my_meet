@@ -13,7 +13,7 @@
   },
   "ui": {
     "theme": "dark",
-    "remember_me": true,
-    "last_username": "shishir"
+    "remember_me": false,
+    "last_username": ""
   }
 }
