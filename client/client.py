@@ -42,6 +42,7 @@ class LANClient(QObject):
     audio_data_received = Signal(str, bytes)  # username, audio_data
     video_data_received = Signal(str, bytes)  # username, video_data
     screen_frame_received = Signal(str, bytes, int, int)  # username, frame_data, width, height
+    media_state_received = Signal(str, str, bool)  # username, media_type, is_active
     error_occurred = Signal(str)  # error message
     
     # Reconnection signals
@@ -318,6 +319,21 @@ class LANClient(QObject):
             
             self.chat_message_received.emit(from_user, payload)
             logger.info(f"Chat message from '{from_user}': {payload[:50]}...")
+        
+        # Media state changes
+        elif msg_type == MessageType.MEDIA_START.value:
+            username = message.get('username')
+            media_type = message.get('media_type')
+            if username and media_type:
+                self.media_state_received.emit(username, media_type, True)
+                logger.info(f"📡 User '{username}' started {media_type}")
+        
+        elif msg_type == MessageType.MEDIA_STOP.value:
+            username = message.get('username')
+            media_type = message.get('media_type')
+            if username and media_type:
+                self.media_state_received.emit(username, media_type, False)
+                logger.info(f"📡 User '{username}' stopped {media_type}")
         
         # File offer
         elif msg_type == MessageType.FILE_OFFER.value:
@@ -654,6 +670,25 @@ class LANClient(QObject):
         except Exception as e:
             logger.error(f"Failed to send video packet: {e}")
             self._handle_media_send_error('video', e)
+    
+    def send_media_state_change(self, media_type: str, is_active: bool):
+        """Send media state change notification to other users."""
+        try:
+            from utils.network_proto import MessageType, create_message
+            
+            message_type = MessageType.MEDIA_START if is_active else MessageType.MEDIA_STOP
+            message = create_message(
+                message_type,
+                username=self.username,
+                media_type=media_type,
+                timestamp=int(time.time())
+            )
+            
+            self._send_tcp_message(message)
+            logger.info(f"📡 Sent media state change: {media_type} = {is_active}")
+            
+        except Exception as e:
+            logger.error(f"Failed to send media state change: {e}")
     
     # ========================================================================
     # Heartbeat

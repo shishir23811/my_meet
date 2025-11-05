@@ -323,6 +323,7 @@ class LANCommunicatorApp(QStackedWidget):
         self.client.audio_data_received.connect(self.on_audio_data_received, Qt.QueuedConnection)
         self.client.video_data_received.connect(self.on_video_data_received, Qt.QueuedConnection)
         self.client.screen_frame_received.connect(self.on_screen_frame_received, Qt.QueuedConnection)
+        self.client.media_state_received.connect(self.on_media_state_received, Qt.QueuedConnection)
         self.client.disconnected.connect(self.on_disconnected, Qt.QueuedConnection)
         self.client.error_occurred.connect(self.on_client_error, Qt.QueuedConnection)
         
@@ -354,6 +355,7 @@ class LANCommunicatorApp(QStackedWidget):
         self.main_window.start_screen_share.connect(self.on_start_screen_share)
         self.main_window.stop_screen_share.connect(self.on_stop_screen_share)
         self.main_window.leave_session.connect(self.on_leave_session)
+        self.main_window.media_state_changed.connect(self.on_media_state_changed)
         
         # Connect media manager for audio strength monitoring
         if self.media_capture:
@@ -473,6 +475,13 @@ class LANCommunicatorApp(QStackedWidget):
         """Handle received screen frame."""
         if self.main_window:
             self.main_window.update_screen_frame(username, frame_data, width, height)
+    
+    @Slot(str, str, bool)
+    def on_media_state_received(self, username: str, media_type: str, is_active: bool):
+        """Handle received media state change from other users."""
+        logger.info(f"📡 APP: Received media state change - {username} {media_type} = {is_active}")
+        if self.main_window:
+            self.main_window.update_user_media_state(username, media_type, is_active)
     
     @Slot()
     def on_disconnected(self):
@@ -824,6 +833,13 @@ class LANCommunicatorApp(QStackedWidget):
         """Handle when a user stops their video."""
         if self.main_window:
             self.main_window.clear_user_video(username)
+    
+    @Slot(str, bool)
+    def on_media_state_changed(self, media_type: str, is_active: bool):
+        """Handle media state change notification."""
+        logger.info(f"📡 APP: Media state changed - {media_type} = {is_active}")
+        if self.client:
+            self.client.send_media_state_change(media_type, is_active)
     
     @Slot()
     def on_leave_session(self):

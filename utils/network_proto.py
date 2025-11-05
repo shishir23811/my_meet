@@ -265,6 +265,7 @@ def generate_stream_id(username: str, stream_type: StreamType) -> int:
     Returns:
         32-bit stream identifier
     """
-    # Simple hash-based ID generation
-    hash_val = hash(username) & 0x0FFFFFFF  # Keep within 28 bits to allow for shift
+    # Use deterministic hash (CRC32) instead of Python's hash() to avoid randomization issues
+    import zlib
+    hash_val = zlib.crc32(username.encode('utf-8')) & 0x0FFFFFFF  # Keep within 28 bits
     return (hash_val << 4) | stream_type.value

@@ -448,6 +448,16 @@ class LANServer:
             
             logger.info(f"Chat message from '{from_user}' in {mode} mode")
         
+        # Media state changes
+        elif msg_type == MessageType.MEDIA_START.value or msg_type == MessageType.MEDIA_STOP.value:
+            username = message.get('username')
+            media_type = message.get('media_type')
+            
+            if username and media_type:
+                # Broadcast media state change to all other users
+                self._broadcast_message(message, exclude=username)
+                logger.info(f"📡 Relayed media state change: {username} {media_type} = {msg_type == MessageType.MEDIA_START.value}")
+        
         # File offer
         elif msg_type == MessageType.FILE_OFFER.value:
             from_user = message.get('from_user')

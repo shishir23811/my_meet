@@ -410,6 +410,7 @@ class MainAppWindow(QMainWindow):
     start_screen_share = Signal()
     stop_screen_share = Signal()
     leave_session = Signal()
+    media_state_changed = Signal(str, bool)  # media_type, is_active
     
     def __init__(self, username: str, session_id: str, is_host: bool = False, server_address: str = None):
         super().__init__()
@@ -443,6 +444,11 @@ class MainAppWindow(QMainWindow):
         self.setup_ui()
         self._setup_error_handling()
         logger.info(f"MainAppWindow initialized for user '{username}' in session '{session_id}'")
+    
+    def notify_media_state_change(self, media_type: str, is_active: bool):
+        """Notify other users about media state changes."""
+        logger.info(f"📡 Notifying media state change: {media_type} = {is_active}")
+        self.media_state_changed.emit(media_type, is_active)
     
     def resizeEvent(self, event):
         """Handle window resize events to update grid layout."""
@@ -1442,6 +1448,8 @@ class MainAppWindow(QMainWindow):
                 # Update microphone icon for self
                 if self.username in self.user_boxes:
                     self.user_boxes[self.username].update_audio_state(True)
+                # Notify other users about audio state change
+                self.notify_media_state_change('audio', True)
                 logger.info("Audio started")
             else:
                 self.stop_audio.emit()
@@ -1451,6 +1459,8 @@ class MainAppWindow(QMainWindow):
                 # Update microphone icon for self
                 if self.username in self.user_boxes:
                     self.user_boxes[self.username].update_audio_state(False)
+                # Notify other users about audio state change
+                self.notify_media_state_change('audio', False)
                 logger.info("Audio stopped")
         except Exception as e:
             logger.error(f"Error toggling audio: {e}")
@@ -2434,9 +2444,13 @@ Role: {'Host' if self.is_host else 'Participant'}"""
     
     def update_user_speaking_state(self, username: str, is_speaking: bool):
         """Update speaking state for a user."""
+        logger.info(f"🗣️ GUI: update_user_speaking_state called for {username}, speaking={is_speaking}")
         if username in self.user_boxes:
             user_box = self.user_boxes[username]
+            logger.info(f"🗣️ GUI: Found user box for {username}, updating speaking state")
             user_box.update_speaking_state(is_speaking)
+        else:
+            logger.warning(f"🗣️ GUI: No user box found for {username} in update_user_speaking_state")
             
             # Only move speaking user to front for large groups (>9 users)
             # For small groups, avoid unnecessary grid refreshes
@@ -2573,6 +2587,20 @@ Role: {'Host' if self.is_host else 'Participant'}"""
         if username in self.user_boxes:
             self.user_boxes[username].update_speaking_state(False)
             logger.debug(f"Reset speaking state for {username}")
+    
+    def update_user_media_state(self, username: str, media_type: str, is_active: bool):
+        """Update media state for a remote user."""
+        logger.info(f"🎭 GUI: update_user_media_state - {username} {media_type} = {is_active}")
+        
+        if username in self.user_boxes:
+            if media_type == 'audio':
+                self.user_boxes[username].update_audio_state(is_active)
+                logger.info(f"🎭 GUI: Updated audio state for {username} to {is_active}")
+            elif media_type == 'video':
+                # Handle video state if needed
+                logger.info(f"🎭 GUI: Video state update for {username} to {is_active}")
+        else:
+            logger.warning(f"🎭 GUI: No user box found for {username} in update_user_media_state")
         
         # Clean up timer
         if hasattr(self, 'speaking_timers') and username in self.speaking_timers:
